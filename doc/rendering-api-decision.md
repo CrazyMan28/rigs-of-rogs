@@ -29,6 +29,23 @@ this afternoon. The genuine engine-side modernization step is **DirectX 11**, wh
 system is already present in the source tree and merely switched off — but switching it on is
 *not* the one-line change it appears to be, for reasons quantified in Option A below.
 
+### How the "no DirectX 12" claim was verified
+
+This is the load-bearing claim, so it was checked against OGRE's own sources rather than taken
+on faith — including at the exact version this fork pins:
+
+| Checked | Result |
+|---|---|
+| [`OGRECave/ogre/RenderSystems`](https://github.com/OGRECave/ogre/tree/master/RenderSystems) (1.x line, `master`) | `Direct3D11, Direct3D9, GL, GL3Plus, GLES2, GLSupport, Metal, Tiny, Vulkan` |
+| Same, at tag **`v1.11.6`** — the pinned version | `Direct3D11, Direct3D9, GL, GL3Plus, GLES2, GLSupport` — note: **no Vulkan yet** |
+| [`OGRECave/ogre-next/RenderSystems`](https://github.com/OGRECave/ogre-next/tree/master/RenderSystems) (`master`) | `Direct3D11, GL3Plus, GLES2, Metal, NULL, Vulkan` |
+| Same, at branch `v3-0` (latest release line) | `Direct3D11, GL3Plus, GLES2, Metal, NULL, Vulkan` |
+| All branches of `OGRECave/ogre` | only `master` and `gh-pages` — no D3D12 work in progress |
+| Commit search for `Direct3D12` across `OGRECave/ogre` history | no matches |
+
+**No Direct3D 12 backend exists on any branch, tag or release line of either project, and none
+is in progress.** If this ever becomes false, the recommendation below must be revisited first.
+
 ---
 
 ## What the audit found
@@ -93,6 +110,8 @@ The good news first: OGRE's Cg plugin **is** D3D11-capable. `PlugIns/CgProgramMa
 recognises `vs_4_0`/`ps_4_0` (Cg ≥ 2.2) and `vs_5_0`/`ps_5_0` (Cg ≥ 3.0) and, for those
 profiles, builds an **HLSL delegate program** rather than D3D9 assembly. Cg 3.1 is new enough
 to emit them. `CgProgramManager` is still present in OGRE `master` today.
+**Verified at tag `v1.11.6`** — the delegate branch is `CgProgram::createLowLevelImpl()` at
+`OgreCgProgram.cpp:442-459` in the pinned version, not just in current `master`.
 
 The bad news is what RoR actually declares. Every `profiles` line in the tree:
 
@@ -121,7 +140,8 @@ Two mechanisms then bite:
    program. The D3D11 render system has no assembly-shader path, so those programs cannot bind.
 2. **`vs_1_1` and `ps_2_x` are never registered by D3D11 at all.** `OgreD3D11RenderSystem.cpp`
    registers `vs_2_0`/`vs_3_0`/`ps_2_0`/`ps_2_a`/`ps_2_b`/`ps_3_0` only under
-   `#define SUPPORT_SM2_0_HLSL_SHADERS 1` (`OgreD3D11RenderSystem.h:49`, on by default), and
+   `#define SUPPORT_SM2_0_HLSL_SHADERS 1` (`OgreD3D11RenderSystem.h:49` — confirmed identical at
+   tag `v1.11.6`, so this is on by default in the pinned version), and
    `vs_1_1`/`ps_2_x` never. That alone rules out **21 of the 72** declarations (12 using `vs_1_1`,
    9 using `ps_2_x`) no matter what else is done.
 
