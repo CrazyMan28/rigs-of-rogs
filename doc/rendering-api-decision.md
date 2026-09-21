@@ -25,11 +25,11 @@ make the game look or run better by itself.
 **But you can run RoR on DirectX 12 today, and it was measured — it just isn't worth it.**
 Windows already ships `d3d9on12.dll`, which runs RoR's existing DirectX 9 calls on a DirectX 12
 driver with no code changes and no rebuild. It works: the game runs correctly that way
-(Experiment 3). It is also **~26% slower** than the DirectX 9 path you already have. The
-translation layer that *is* faster maps D3D9 onto **Vulkan**, not DX12 — DXVK ran 36% faster
-than native on median frame time and won all five test rounds. So the honest answer to "should
-we move to DX12" is: you can, cheaply, and you should not — but there is a free speed-up next
-door. The genuine engine-side modernization step is **DirectX 11**, whose render system is already
+(Experiment 3). It is also **not faster** — roughly 28% slower than a healthy D3D9 path, though
+it never had a bad round, which D3D9 did. The translation layer that *is* faster maps D3D9 onto
+**Vulkan**, not DX12 — DXVK ran 36% faster than native on median frame time and was faster in
+**all five** test rounds. So the honest answer to "should we move to DX12" is: you can, cheaply,
+and it buys you nothing — but there is a free speed-up next door. The genuine engine-side modernization step is **DirectX 11**, whose render system is already
 present in the source tree and merely switched off. Switching it on is *not* the one-line
 change it appears to be: it was tried (Experiment 2) and **the game crashes during startup**,
 before it renders a single frame.
@@ -294,18 +294,29 @@ by file size immediately before every launch.
 
 ### Results — 5 interleaved rounds
 
-| Configuration | median frame time | 1%-low | worst frame | median FPS |
+Median frame time, per round (ms) — read the rows, not just the summary:
+
+| round | native D3D9 | D3D9On12 (DX12) | DXVK (Vulkan) |
+|---|---|---|---|
+| 1 | 0.821 | 1.056 | **0.538** |
+| 2 | 0.824 | 1.040 | **0.528** |
+| 3 | 0.840 | 1.078 | **0.538** |
+| 4 | **1.574** | 1.044 | **0.566** |
+| 5 | **1.433** | 1.076 | **0.563** |
+| **spread** | **0.753** | **0.038** | **0.038** |
+
+| Configuration | median | 1%-low | worst frame | median FPS |
 |---|---|---|---|---|
-| native D3D9 | **0.840 ms** (0.821–1.574) | 1.917 ms (1.867–3.362) | 4.810 ms | 1190 |
-| D3D9On12 (**DirectX 12**) | **1.056 ms** (1.040–1.078) | 2.107 ms (2.038–2.689) | 6.028 ms | 947 |
-| DXVK (**Vulkan**) | **0.538 ms** (0.528–0.566) | 1.381 ms (1.321–2.332) | 3.556 ms | 1859 |
+| native D3D9 | 0.840 ms | 1.917 ms | 4.810 ms | 1190 |
+| D3D9On12 (**DirectX 12**) | 1.056 ms | 2.107 ms | 6.028 ms | 947 |
+| DXVK (**Vulkan**) | **0.538 ms** | **1.381 ms** | **3.556 ms** | **1859** |
 
 Paired against native *within each round*:
 
 | | median frame time | 1%-low | consistency |
 |---|---|---|---|
-| D3D9On12 | **+26.2%** (slower) | +6.3% | better in 2 of 5 rounds — **mixed** |
-| DXVK | **−36.0%** (faster) | **−29.9%** | better in **5 of 5** rounds — consistent |
+| D3D9On12 | +26.2% median of deltas | +6.3% | **mixed** — slower in rounds 1–3, faster in 4–5 |
+| DXVK | **−36.0%** | **−29.9%** | faster in **5 of 5** rounds |
 
 ### What this actually says
 
@@ -314,17 +325,24 @@ Paired against native *within each round*:
    just one DLL beside the executable. The owner's literal question — *can this run on
    DirectX 12* — is answered **yes, today**, and it was measured, not argued.
 
-2. **But DirectX 12 is not the fast one.** D3D9On12 is **~26% slower** than the existing D3D9
-   path on median frame time. It does not buy performance. What it does buy is *stability*: its
-   own spread across rounds was 0.038 ms, against native's 0.753 ms.
+2. **But DirectX 12 is not the fast one, and the comparison is not a single number.** Native
+   D3D9 was **bimodal**: ~0.83 ms in rounds 1–3, then ~1.50 ms in rounds 4–5. D3D9On12 sat at a
+   near-constant 1.05 ms throughout. So D3D9On12 is **~28% slower than native at its best and
+   ~30% faster than native at its worst** — the headline "+26%" is just where the median of the
+   per-round deltas happens to land, and quoting it alone would be misleading. **D3D9On12 never
+   beats a healthy D3D9 path; it is simply immune to whatever degraded it.**
+
+   *Why native degraded in rounds 4–5 is unknown.* Both translation layers held a 0.038 ms
+   spread in those same rounds, so it is not a machine-wide slowdown — but with five rounds this
+   is an observation, not a demonstrated property of the D3D9 driver. It is worth re-testing.
 
 3. **DXVK — Vulkan, not DirectX 12 — is the only configuration that is clearly faster**, and it
    won every single round on both median and 1%-low. If the goal behind "upgrade to DX12" is
    "make it faster on a modern driver", **Vulkan via DXVK is the option that delivers it.**
 
-4. **Native D3D9 was the least consistent** of the three (0.821 → 1.574 ms across rounds) while
-   both translation layers held tight ranges in those same rounds — so this is not machine
-   drift, it is the D3D9 path itself.
+4. **Native D3D9 was by far the least consistent** — a 0.753 ms spread against 0.038 ms for
+   both wrappers. Whatever the cause, a user on the native path saw roughly double the frame
+   time in two of five rounds; neither wrapper did.
 
 ### The caveat that limits all of the above
 
@@ -565,7 +583,7 @@ permanent tax on a fork whose renderer is otherwise free.
 |---|---|
 | **Possible?** | **Yes, today, with no code changes.** |
 | **Effort** | **Hours to a few days** — entirely evaluation, not development. |
-| **Buys** | **Measured (Experiment 3): DXVK gives −36% median frame time and −29.9% 1%-low, winning 5 of 5 rounds. D3D9On12 buys no speed at all — ~26% *slower* than native — but is the steadiest of the three.** Both run the game correctly with no code changes. |
+| **Buys** | **Measured (Experiment 3): DXVK gives −36% median frame time and −29.9% 1%-low, faster in 5 of 5 rounds. D3D9On12 buys no speed — ~28% slower than a healthy D3D9 path — but never had a bad round, which native did.** Both run the game correctly with no code changes. |
 | **Breaks** | Nothing in the codebase. Ships as a deployment/config choice, per-user and reversible. |
 | **Maintenance** | Near zero. D3D9On12 is part of Windows; DXVK is externally maintained. |
 
@@ -580,8 +598,8 @@ short version on an RTX 4070 Laptop, one vehicle on `simple2` at 1280×720:
 
 - **DXVK (Vulkan): 0.538 ms median vs native's 0.840 ms** — faster in every round, on both
   median and 1%-low.
-- **D3D9On12 (DirectX 12): 1.056 ms median** — *slower* than native, but with the tightest
-  round-to-round spread of the three.
+- **D3D9On12 (DirectX 12): 1.056 ms median** — slower than native's good rounds (~0.83 ms),
+  faster than its degraded ones (~1.50 ms), and the steadiest of the three (0.038 ms spread).
 
 That ordering matches the published expectation that DXVK tends to beat D3D9On12
 ([Intel community report](https://community.intel.com/t5/Intel-Arc-Discrete-Graphics/Suggestions-DXVK-outperforms-D3D9On12-when-running-DirectX-9-on/m-p/1428393),
@@ -600,14 +618,16 @@ Options A–D by a single step.
 ## Recommendation
 
 **Ship DXVK as a supported option now; treat Option A as the only engine-side modernization
-worth funding. Do not pursue DirectX 12 — measured, it is the slowest of the three.**
+worth funding. Do not pursue DirectX 12 — measured, it buys no performance over the D3D9 path
+you already have.**
 
 Experiment 3 settled what was previously a guess, and it inverted half of it. A translation
 layer is still the only thing in this document that costs nothing — no code change, no rebuild,
 no risk to the D3D9 path, a single DLL the user can delete — but **the DirectX 12 layer is not
-the one to ship.** D3D9On12 measured ~26% *slower* than the existing D3D9 path. **DXVK, which
-maps D3D9 onto Vulkan, was faster in all five rounds on both median (−36%) and 1%-low
-(−29.9%)**, and is the one worth shipping as a documented, opt-in option. It is explicitly
+the one to ship.** D3D9On12 never beat a healthy D3D9 path; it only looked good against native's
+two degraded rounds. **DXVK, which maps D3D9 onto Vulkan, was faster in all five rounds on both
+median (−36%) and 1%-low (−29.9%)**, and is the one worth shipping as a documented, opt-in
+option. It is explicitly
 *not* modernization: it buys frames and driver compatibility, not architecture. If and when the goal becomes a genuinely modern renderer, the
 entry point is **Option A** — not because D3D11 is exciting, but because its real content is
 killing the Cg dependency and wiring up RTSS, and *that work is an unavoidable prerequisite for
