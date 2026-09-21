@@ -1,0 +1,248 @@
+01:38:53: [RoR] Rigs of Rods (www.rigsofrods.org) version 2026.09-dev-3832e7783-dirty
+01:38:53: [RoR] Current date: 2026-09-21
+01:38:53: [RoR|CVar]        sys_config_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\config" (was: "")
+01:38:53: [RoR|CVar]         sys_cache_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\cache" (was: "")
+01:38:53: [RoR|CVar]    sys_thumbnails_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\thumbnails" (was: "")
+01:38:53: [RoR|CVar]     sys_savegames_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\savegames" (was: "")
+01:38:53: [RoR|CVar]    sys_screenshot_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\screenshots" (was: "")
+01:38:53: [RoR|CVar]       sys_scripts_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\scripts" (was: "")
+01:38:53: [RoR|CVar]  sys_server_scripts_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\server_scripts" (was: "")
+01:38:53: [RoR|CVar]      sys_projects_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\projects" (was: "")
+01:38:53: [RoR|CVar]  sys_repo_attachments_dir:  "C:\Users\kihi2024\Documents\My Games\Rigs of Rods\repo_attachments" (was: "")
+01:38:53: [RoR|CVar]       app_num_workers:  "8" (was: "0")
+01:38:53: [RoR|CVar]    app_recent_scripts:  "rorbench.as" (was: "")
+01:38:53: [RoR|CVar]    cli_preset_terrain:  "simple2.terrn2" (was: "")
+01:38:53: [RoR|CVar]     sys_resources_dir:  "C:\Users\kihi2024\rigs_of_rogs\build\bin\resources" (was: "")
+01:38:53: [RoR|Startup|Rendering] Creating OGRE renderer Root object, config='C:\Users\kihi2024\Documents\My Games\Rigs of Rods\config\ogre.cfg'
+01:38:53: Creating resource group General
+01:38:53: Creating resource group OgreInternal
+01:38:53: Creating resource group OgreAutodetect
+01:38:53: SceneManagerFactory for type 'DefaultSceneManager' registered.
+01:38:53: Registering ResourceManager for type Material
+01:38:53: Registering ResourceManager for type Mesh
+01:38:53: Registering ResourceManager for type Skeleton
+01:38:53: MovableObjectFactory for type 'ParticleSystem' registered.
+01:38:53: ArchiveFactory for archive type FileSystem registered.
+01:38:53: ArchiveFactory for archive type Zip registered.
+01:38:53: ArchiveFactory for archive type EmbeddedZip registered.
+01:38:53: DDS codec registering
+01:38:53: ETC codec registering
+01:38:53: Registering ResourceManager for type HighLevelGpuProgram
+01:38:53: Registering ResourceManager for type Compositor
+01:38:53: MovableObjectFactory for type 'Entity' registered.
+01:38:53: MovableObjectFactory for type 'Light' registered.
+01:38:53: MovableObjectFactory for type 'BillboardSet' registered.
+01:38:53: MovableObjectFactory for type 'ManualObject' registered.
+01:38:53: MovableObjectFactory for type 'BillboardChain' registered.
+01:38:53: MovableObjectFactory for type 'RibbonTrail' registered.
+01:38:53: *-*-* OGRE Initialising
+01:38:53: *-*-* Version 1.11.6 (Rhagorthua)
+01:38:53: [RoR|Startup|Rendering] Loading OGRE renderer plugins config 'C:\Users\kihi2024\rigs_of_rogs\build\bin\plugins.cfg'.
+01:38:53: Loading library .\Codec_FreeImage
+01:38:53: FreeImage version: 3.18.0
+01:38:53: This program uses FreeImage, a free, open source image library supporting all common bitmap formats. See http://freeimage.sourceforge.net for details
+01:38:53: Supported formats: bmp,ico,jpg,jif,jpeg,jpe,jng,koa,iff,lbm,mng,pbm,pbm,pcd,pcx,pgm,pgm,png,ppm,ppm,ras,tga,targa,tif,tiff,wap,wbmp,wbm,psd,psb,cut,xbm,xpm,gif,hdr,sgi,rgb,rgba,bw,exr,j2k,j2c,jp2,pfm,pct,pict,pic,3fr,arw,bay,bmq,cap,cine,cr2,crw,cs1,dc2,dcr,drf,dsc,dng,erf,fff,ia,iiq,k25,kc2,kdc,mdc,mef,mos,mrw,nef,nrw,orf,pef,ptx,pxn,qtk,raf,raw,rdc,rw2,rwl,rwz,sr2,srf,srw,sti,x3f,webp,jxr,wdp,hdp
+01:38:53: Loading library .\RenderSystem_Direct3D9
+01:38:53: Installing plugin: D3D9 RenderSystem
+01:38:53: D3D9 : Direct3D9 Rendering Subsystem created.
+01:38:53: D3D9: Driver Detection Starts
+01:38:53: D3D9: Driver Detection Ends
+01:38:53: Plugin successfully installed
+01:38:53: Loading library .\RenderSystem_Direct3D11
+01:38:53: Installing plugin: D3D11 RenderSystem
+01:38:53: D3D11: Direct3D11 Rendering Subsystem created.
+01:38:53: D3D11: Driver Detection Starts
+01:38:53: D3D11: "NVIDIA GeForce RTX 4070 Laptop GPU"
+01:38:53: D3D11: "AMD Radeon(TM) Graphics"
+01:38:53: D3D11: "Microsoft Basic Render Driver (software)"
+01:38:53: D3D11: Driver Detection Ends
+01:38:53: Plugin successfully installed
+01:38:53: Loading library .\Plugin_ParticleFX
+01:38:53: Installing plugin: ParticleFX
+01:38:53: Particle Emitter Type 'Point' registered
+01:38:53: Particle Emitter Type 'Box' registered
+01:38:53: Particle Emitter Type 'Ellipsoid' registered
+01:38:53: Particle Emitter Type 'Cylinder' registered
+01:38:53: Particle Emitter Type 'Ring' registered
+01:38:53: Particle Emitter Type 'HollowEllipsoid' registered
+01:38:53: Particle Affector Type 'LinearForce' registered
+01:38:53: Particle Affector Type 'ColourFader' registered
+01:38:53: Particle Affector Type 'ColourFader2' registered
+01:38:53: Particle Affector Type 'ColourImage' registered
+01:38:53: Particle Affector Type 'ColourInterpolator' registered
+01:38:53: Particle Affector Type 'Scaler' registered
+01:38:53: Particle Affector Type 'Rotator' registered
+01:38:53: Particle Affector Type 'DirectionRandomiser' registered
+01:38:53: Particle Affector Type 'DeflectorPlane' registered
+01:38:53: Plugin successfully installed
+01:38:53: Loading library .\Plugin_OctreeSceneManager
+01:38:53: Installing plugin: Octree Scene Manager
+01:38:53: Plugin successfully installed
+01:38:53: Loading library .\Plugin_CgProgramManager
+01:38:53: Installing plugin: Cg Program Manager
+01:38:53: Plugin successfully installed
+01:38:53: Loading library .\Caelum
+01:38:53: Installing plugin: Caelum
+01:38:53: Caelum plugin version 0.6.3 installed
+01:38:53: Registering ResourceManager for type PropertyScript
+01:38:53: Plugin successfully installed
+01:38:53: D3D11: RenderSystem Option: Full Screen = No
+01:38:53: D3D11: RenderSystem Option: VSync = No
+01:38:53: D3D11: RenderSystem Option: Video Mode = 1280 x 720 @ 32-bit colour
+01:38:53: [RoR|Startup|Rendering] Starting renderer 'Direct3D11 Rendering Subsystem' (without auto-creating render window)
+01:38:53: CPU Identifier & Features
+01:38:53: -------------------------
+01:38:53:  *   CPU ID: AuthenticAMD: AMD Ryzen 7 8845HS w/ Radeon 780M Graphics
+01:38:53:  *          SSE: yes
+01:38:53:  *         SSE2: yes
+01:38:53:  *         SSE3: yes
+01:38:53:  *        SSE41: no
+01:38:53:  *        SSE42: no
+01:38:53:  *          MMX: yes
+01:38:53:  *       MMXEXT: yes
+01:38:53:  *        3DNOW: no
+01:38:53:  *     3DNOWEXT: no
+01:38:53:  *         CMOV: yes
+01:38:53:  *          TSC: yes
+01:38:53:  *INVARIANT TSC: yes
+01:38:53:  *          FPU: yes
+01:38:53:  *          PRO: yes
+01:38:53:  *           HT: no
+01:38:53: -------------------------
+01:38:53: D3D11: Subsystem Initialising
+01:38:53: D3D11: Driver Detection Starts
+01:38:53: D3D11: "NVIDIA GeForce RTX 4070 Laptop GPU"
+01:38:53: D3D11: "AMD Radeon(TM) Graphics"
+01:38:53: D3D11: "Microsoft Basic Render Driver (software)"
+01:38:53: D3D11: Driver Detection Ends
+01:38:53: D3D11: Requested "(default)", selected "NVIDIA GeForce RTX 4070 Laptop GPU"
+01:38:53: ***************************************
+01:38:53: *** D3D11: Subsystem Initialized OK ***
+01:38:53: ***************************************
+01:38:53: [RoR|Startup|Rendering] Renderer options as reported by OGRE:
+  Allow NVPerfHUD = No (Yes, No, )
+  Backbuffer Count = Auto (Auto, 1, 2, )
+  Driver type = Hardware (Hardware, Software, Warp, )
+  FSAA = 1 (1, 2, 4, 8, )
+  Floating-point mode = Fastest (Fastest, Consistent, )
+  Full Screen = No (No, Yes, )
+  Information Queue Exceptions Bottom Level = No information queue exceptions (No information queue exceptions, Corruption, Error, Warning, Info (exception on any message), )
+  Max Requested Feature Levels = 11.0 (9.1, 9.3, 10.0, 10.1, 11.0, )
+  Min Requested Feature Levels = 9.1 (9.1, 9.3, 10.0, 10.1, 11.0, )
+  Rendering Device = (default) ((default), NVIDIA GeForce RTX 4070 Laptop GPU, AMD Radeon(TM) Graphics, Microsoft Basic Render Driver (software), )
+  VSync = No (No, Yes, )
+  VSync Interval = 1 (1, 2, 3, 4, )
+  Video Mode = 1280 x 720 @ 32-bit colour (640 x 480 @ 32-bit colour, 720 x 480 @ 32-bit colour, 720 x 576 @ 32-bit colour, 800 x 600 @ 32-bit colour, 1024 x 768 @ 32-bit colour, 1152 x 864 @ 32-bit colour, 1280 x 720 @ 32-bit colour, 1280 x 768 @ 32-bit colour, 1280 x 800 @ 32-bit colour, 1280 x 960 @ 32-bit colour, 1280 x 1024 @ 32-bit colour, 1360 x 768 @ 32-bit colour, 1366 x 768 @ 32-bit colour, 1440 x 1080 @ 32-bit colour, 1600 x 1024 @ 32-bit colour, 1920 x 1080 @ 32-bit colour, )
+  sRGB Gamma Conversion = No (No, Yes, )
+
+01:38:53: [RoR|Startup|Rendering] Creating render window with settings:
+  FSAA = 1
+  border = fixed
+  gamma = No
+  monitorIndex = 0
+  vsync = No
+  windowProc = 140737070117856
+
+01:38:53: D3D11RenderSystem::_createRenderWindow "Rigs of Rods version 2026.09-dev-3832e7783-dirty", 1280x720 windowed  miscParams: FSAA=1 border=fixed gamma=No monitorIndex=0 vsync=No windowProc=140737070117856 
+01:38:53: D3D11: Created D3D11 Rendering Window 'Rigs of Rods version 2026.09-dev-3832e7783-dirty' : 1280x720, 32bpp
+01:38:53: Warning: D3D11: disabling VSync in windowed mode can cause timing issues at lower frame rates, turn VSync on if you observe this problem.
+01:38:53: Registering ResourceManager for type Texture
+01:38:53: Registering ResourceManager for type GpuProgram
+01:38:53: RenderSystem capabilities
+01:38:53: -------------------------
+01:38:53: RenderSystem Name: Direct3D11 Rendering Subsystem
+01:38:53: GPU Vendor: nvidia
+01:38:53: Device Name: NVIDIA GeForce RTX 4070 Laptop GPU
+01:38:53: Driver Version: 32.0.16.1692
+01:38:53:  * Fixed function pipeline: no
+01:38:53:  * Anisotropic texture filtering: yes
+01:38:53:  * Cube mapping: yes
+01:38:53:  * Hardware stencil buffer: yes
+01:38:53:    - Stencil depth: 8
+01:38:53:    - Two sided stencil support: yes
+01:38:53:    - Wrap stencil values: yes
+01:38:53:  * 32-bit index buffers: yes
+01:38:53:  * Vertex programs: yes
+01:38:53:  * Number of floating-point constants for vertex programs: 512
+01:38:53:  * Number of integer constants for vertex programs: 16
+01:38:53:  * Number of boolean constants for vertex programs: 16
+01:38:53:  * Fragment programs: yes
+01:38:53:  * Number of floating-point constants for fragment programs: 512
+01:38:53:  * Number of integer constants for fragment programs: 16
+01:38:53:  * Number of boolean constants for fragment programs: 16
+01:38:53:  * Geometry programs: yes
+01:38:53:  * Number of floating-point constants for geometry programs: 512
+01:38:53:  * Number of integer constants for geometry programs: 16
+01:38:53:  * Number of boolean constants for geometry programs: 16
+01:38:53:  * Tessellation Hull programs: yes
+01:38:53:  * Number of floating-point constants for tessellation hull programs: 512
+01:38:53:  * Number of integer constants for tessellation hull programs: 16
+01:38:53:  * Number of boolean constants for tessellation hull programs: 16
+01:38:53:  * Tessellation Domain programs: yes
+01:38:53:  * Number of floating-point constants for tessellation domain programs: 512
+01:38:53:  * Number of integer constants for tessellation domain programs: 16
+01:38:53:  * Number of boolean constants for tessellation domain programs: 16
+01:38:53:  * Compute programs: yes
+01:38:53:  * Number of floating-point constants for compute programs: 512
+01:38:53:  * Number of integer constants for compute programs: 16
+01:38:53:  * Number of boolean constants for compute programs: 16
+01:38:53:  * Supported Shader Profiles: cs_4_0 cs_4_1 cs_5_0 ds_5_0 gs_4_0 gs_4_1 gs_5_0 hlsl hs_5_0 ps_2_0 ps_2_a ps_2_b ps_2_x ps_3_0 ps_3_x ps_4_0 ps_4_0_level_9_1 ps_4_0_level_9_3 ps_4_1 ps_5_0 vs_2_0 vs_2_a vs_2_x vs_3_0 vs_4_0 vs_4_0_level_9_1 vs_4_0_level_9_3 vs_4_1 vs_5_0
+01:38:53:  * Texture Compression: yes
+01:38:53:    - DXT: yes
+01:38:53:    - VTC: no
+01:38:53:    - PVRTC: no
+01:38:53:    - ATC: no
+01:38:53:    - ETC1: no
+01:38:53:    - ETC2: no
+01:38:53:    - BC4/BC5: no
+01:38:53:    - BC6H/BC7: yes
+01:38:53:    - ASTC: no
+01:38:53:    - Mipmaps for compressed formats: no
+01:38:53:  * Hardware Occlusion Query: yes
+01:38:53:  * User clip planes: yes
+01:38:53:  * VET_UBYTE4 vertex element type: yes
+01:38:53:  * Infinite far plane projection: yes
+01:38:53:  * Hardware render-to-texture: yes
+01:38:53:  * Floating point textures: yes
+01:38:53:  * Non-power-of-two textures: yes
+01:38:53:  * 1d textures: yes
+01:38:53:  * Volume textures: yes
+01:38:53:  * Multiple Render Targets: 8
+01:38:53:    - With different bit depths: yes
+01:38:53:  * Point Sprites: yes
+01:38:53:  * Wide Lines: no
+01:38:53:  * Hardware Gamma: no
+01:38:53:  * Extended point parameters: yes
+01:38:53:  * Max Point Size: 256
+01:38:53:  * Vertex texture fetch: yes
+01:38:53:  * Number of texture units: 16
+01:38:53:  * Number of vertex attributes: 32
+01:38:53:  * Stencil buffer depth: 8
+01:38:53:  * Number of vertex blend matrices: 0
+01:38:53:    - Max vertex textures: 4
+01:38:53:    - Vertex textures shared: yes
+01:38:53:  * Render to Vertex Buffer : yes
+01:38:53:  * Hardware Atomic Counters: no
+01:38:53: DefaultWorkQueue('Root') initialising on thread 1864.
+01:38:53: Particle Renderer Type 'billboard' registered
+01:38:53: DefaultWorkQueue('Root')::WorkerFunc - thread 13420 starting.
+01:38:53: DefaultWorkQueue('Root')::WorkerFunc - thread 29808 starting.
+01:38:54: SceneManagerFactory for type 'OctreeSceneManager' registered.
+01:38:54: Creating resource group SrcRG
+01:38:54: Added resource location 'C:\Users\kihi2024\rigs_of_rogs\build\bin\resources\skeleton.zip' of type 'Zip' to resource group 'SrcRG'
+01:38:54: Creating resource group DstRG
+01:38:54: Added resource location 'C:\Users\kihi2024\Documents\My Games\Rigs of Rods\' of type 'FileSystem' to resource group 'DstRG'
+01:38:54: Destroying resource group SrcRG
+01:38:54: Unloading resource group SrcRG
+01:38:54: Finished unloading resource group SrcRG
+01:38:54: Destroying resource group DstRG
+01:38:54: Unloading resource group DstRG
+01:38:54: Finished unloading resource group DstRG
+01:38:54: OverlayElementFactory for type Panel registered.
+01:38:54: OverlayElementFactory for type BorderPanel registered.
+01:38:54: OverlayElementFactory for type TextArea registered.
+01:38:54: Registering ResourceManager for type Font
+01:38:54: Texture 'Warning': Loading 1 faces(PF_R5G6B5,8x8x1) with 3 generated mipmaps from Image. Internal format is PF_A8B8G8R8,8x8x1.
+01:38:54: Ogre::RenderingAPIException::RenderingAPIException: D3D11 device cannot copy a subresource - source and dest size are not the same and they have to be the same in DX11. in D3D11HardwarePixelBuffer::blitFromMemory at C:\Users\kihi2024\.conan2\p\b\ogre39f025ea7d553c\b\RenderSystems\Direct3D11\src\OgreD3D11HardwarePixelBuffer.cpp (line 333)
+01:38:54: Ogre::RenderingAPIException::RenderingAPIException: D3D11 device cannot copy a subresource - source and dest size are not the same and they have to be the same in DX11. in D3D11HardwarePixelBuffer::blitFromMemory at C:\Users\kihi2024\.conan2\p\b\ogre39f025ea7d553c\b\RenderSystems\Direct3D11\src\OgreD3D11HardwarePixelBuffer.cpp (line 333)
+01:38:54: [RoR|ErrorPopupDialog] An exception has occured!: Ogre::RenderingAPIException::RenderingAPIException: D3D11 device cannot copy a subresource - source and dest size are not the same and they have to be the same in DX11. in D3D11HardwarePixelBuffer::blitFromMemory at C:\Users\kihi2024\.conan2\p\b\ogre39f025ea7d553c\b\RenderSystems\Direct3D11\src\OgreD3D11HardwarePixelBuffer.cpp (line 333)
