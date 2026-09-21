@@ -56,6 +56,11 @@ void report()
 
     samples.sortAsc();
 
+    // Upper median: for even n this is the higher of the two central samples
+    // rather than their mean. With n in the tens of thousands the two are
+    // adjacent order statistics and the difference is far below run-to-run
+    // noise, so it is left as-is - and the shipped benchmark data was produced
+    // by exactly this code.
     float median = samples[n / 2];
 
     // 1%-low: mean of the slowest 1% of frames (the tail that is actually felt).
