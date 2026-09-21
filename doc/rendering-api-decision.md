@@ -652,9 +652,14 @@ Options A–D by a single step.
 
 ## Recommendation
 
-**Ship DXVK as a supported option now; treat Option A as the only engine-side modernization
-worth funding. Do not pursue DirectX 12 — measured, it buys no performance over the D3D9 path
-you already have.**
+**Offer DXVK as a documented opt-in now and re-measure on real content before making it a
+default; treat Option A as the only engine-side modernization worth funding. Do not pursue
+DirectX 12 — measured, it buys no performance over the D3D9 path you already have.**
+
+*The hedge is deliberate.* DXVK won every clean round by a wide margin, but it won them in a
+scene running at 950–1860 FPS where the GPU is idle, so what was measured is CPU-side driver
+overhead rather than gameplay frame rate. That is enough to justify shipping it as an option
+people can switch on; it is not enough to justify flipping the default for everyone.
 
 Experiment 3 settled what was previously a guess, and it inverted half of it. A translation
 layer is still the only thing in this document that costs nothing — no code change, no rebuild,
