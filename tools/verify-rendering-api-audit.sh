@@ -177,6 +177,20 @@ check "gfx_alt_actor_materials default (gates the NiceMetal materials)" "false" 
     "$(grep -oE '"gfx_alt_actor_materials".*"(true|false)"' source/main/system/CVar.cpp \
         | grep -oE '"(true|false)"$' | tr -d '"')"
 
+echo
+echo "== D3D11 startup blocker (Experiment 2) =="
+
+# Every texture requests 5 mip levels. Under D3D11 that routes the 8x8 'Warning'
+# texture through a mismatched-size blitFromMemory, which OGRE refuses - the
+# crash that stops D3D11 before it ever reaches a shader. If this stops being 5,
+# or stops being called, re-run the smoke test before trusting the document.
+check "setDefaultNumMipmaps(5) call sites" "2" \
+    "$(grep -rc 'setDefaultNumMipmaps(5)' source/main --include='*.cpp' \
+        | awk -F: '{s+=$NF} END{print s+0}')"
+
+echo
+echo "== RTShaderSystem (continued) =="
+
 check "RTSS FFPLib HLSL variants shipped" "9" \
     "$(find resources/rtshader -name '*.hlsl' | wc -l | tr -d ' ')"
 

@@ -1,11 +1,12 @@
 # Render API decision: DirectX 9 → DirectX 12
 
-**Status:** research complete, recommendation pending owner confirmation
+**Status:** research complete — all four required experiments run, including the D3D11 smoke
+test and the translation-layer benchmark. Recommendation pending owner confirmation.
 **Issue:** [#2](https://github.com/CrazyMan28/rigs-of-rogs/issues/2) · **Epic:** [#1](https://github.com/CrazyMan28/rigs-of-rogs/issues/1)
-**Audited against:** this checkout, `master` @ `8c821c052`, OGRE **1.11.6.1** (`conanfile.py:25`)
+**Audited against:** this checkout, `master` @ `4c607c7f6`, OGRE **1.11.6.1** (`conanfile.py:25`)
 
 > Every load-bearing count in this document is re-derivable. Run
-> `tools/verify-rendering-api-audit.sh`; it re-computes the **39** tree-dependent figures it
+> `tools/verify-rendering-api-audit.sh`; it re-computes the **40** tree-dependent figures it
 > lists and exits non-zero if any has drifted. It is a manual check — no CI job runs it. The
 > tree moves: do not trust a number here that the script no longer confirms.
 
@@ -21,13 +22,17 @@ a Direct3D 12 render system for OGRE yourself, from scratch — roughly two engi
 of specialist graphics work, permanently maintained by this fork alone, and it would still not
 make the game look or run better by itself.
 
-**But most of what you actually want is reachable, and one piece of it costs nothing.**
-Windows already ships `d3d9on12.dll`, which runs RoR's existing DirectX 9 calls on top of a
-DirectX 12 driver — no code changes, no rebuild. DXVK does the same onto Vulkan. In the only
-sense that is cheaply achievable, "running RoR on DirectX 12" is a drop-in change you can test
-this afternoon. The genuine engine-side modernization step is **DirectX 11**, whose render
-system is already present in the source tree and merely switched off — but switching it on is
-*not* the one-line change it appears to be, for reasons quantified in Option A below.
+**But you can run RoR on DirectX 12 today, and it was measured — it just isn't worth it.**
+Windows already ships `d3d9on12.dll`, which runs RoR's existing DirectX 9 calls on a DirectX 12
+driver with no code changes and no rebuild. It works: the game runs correctly that way
+(Experiment 3). It is also **~26% slower** than the DirectX 9 path you already have. The
+translation layer that *is* faster maps D3D9 onto **Vulkan**, not DX12 — DXVK ran 36% faster
+than native on median frame time and won all five test rounds. So the honest answer to "should
+we move to DX12" is: you can, cheaply, and you should not — but there is a free speed-up next
+door. The genuine engine-side modernization step is **DirectX 11**, whose render system is already
+present in the source tree and merely switched off. Switching it on is *not* the one-line
+change it appears to be: it was tried (Experiment 2) and **the game crashes during startup**,
+before it renders a single frame.
 
 ### How the "no DirectX 12" claim was verified
 
@@ -220,6 +225,118 @@ project, not a build-flag change.
 
 ---
 
+## Experiment 2 — D3D11 smoke test: RUN, and it crashes
+
+**Correction to an earlier revision of this document.** It claimed these experiments could not
+be run because no toolchain and no content were available. Both claims were wrong:
+
+- **Visual Studio Build Tools 2026 (MSVC 14.51) and Windows SDK 10.0.26100 were already
+  installed** — the earlier check looked under `Program Files` and missed
+  `Program Files (x86)/Microsoft Visual Studio/18/BuildTools`.
+- **`content/` is not empty, it is an uninitialised git submodule**
+  (`RigsOfRods/content.git`, 5 MB). `git submodule update --init content` yields the
+  `simple2` terrain plus the `agora` and `dafsemi` vehicles — enough for a fixed scene.
+
+Only CMake and Conan were actually missing. With those added, the game builds and runs, and
+both experiments were performed. Method is recorded in §"How to reproduce" below.
+
+### Result: D3D11 does not start. It crashes before it reaches the shader layer.
+
+Flipping `source/main/CMakeLists.txt:496` and rebuilding does ship the plugin — the generated
+`plugins.cfg` gains `Plugin=RenderSystem_Direct3D11`, and `RenderSystem_Direct3D11.dll` is
+already copied into the runtime directory by the existing build, so **no packaging work is
+needed at all**. Selecting it produces, reproducibly (2 of 2 runs, exit `0xC000041D`):
+
+```
+Ogre::RenderingAPIException: D3D11 device cannot copy a subresource - source and dest
+size are not the same and they have to be the same in DX11.
+  in D3D11HardwarePixelBuffer::blitFromMemory at OgreD3D11HardwarePixelBuffer.cpp (line 333)
+```
+
+Triggered while loading OGRE's built-in 8×8 `Warning` texture during Overlay/Font
+initialisation, immediately after `Registering ResourceManager for type Font`.
+
+**This inverts this document's own prediction.** The analysis above predicted the first failure
+would be Cg programs hitting `D3D11UnsupportedGpuProgram`. It is not. The Cg plugin never gets
+that far — the log shows only `Installing plugin: Cg Program Manager`, with no program ever
+compiled. **The Cg problem is real but it is the *second* blocker, not the first.**
+
+**Root cause**, traced in the OGRE source:
+
+- `D3D11HardwarePixelBuffer::blitFromMemory` throws unconditionally when source and destination
+  dimensions differ — D3D11 requires an exact-size copy, whereas the D3D9 backend performs a
+  scaling blit happily.
+- RoR calls `Ogre::TextureManager::setDefaultNumMipmaps(5)` (`main.cpp:145` and
+  `ContentManager.cpp:236`), so every texture requests 5 mip levels. Under D3D9 the `Warning`
+  texture loads natively as `PF_R5G6B5` with no mip generation; under D3D11 it is converted to
+  `PF_A8B8G8R8` **with 3 generated mipmaps**, and that mip upload is the mismatched blit.
+- **This limitation is still present in OGRE `master`** (same `OGRE_EXCEPT`, now at
+  `OgreD3D11HardwarePixelBuffer.cpp:280`), so it is not something a version bump fixes.
+
+It is a RoR-side setting meeting a standing OGRE D3D11 limitation, so it *is* fixable — but it
+is a third work item for Option A that nobody had counted, and it sits *ahead* of the Cg work.
+
+---
+
+## Experiment 3 — translation-layer benchmark: RUN
+
+Raw per-run data: [`doc/rendering-api-benchmark-data.csv`](rendering-api-benchmark-data.csv).
+Scene, hardware and method are in §"How to reproduce".
+
+**Design note, because the first attempt was wrong.** Earlier batches ran all of one
+configuration, then all of the next. Between those batches the machine's own baseline shifted
+by roughly 3× (native median 2.08 ms → 0.85 ms) as it cooled down from the dependency build.
+That confounds time with configuration, so those batches were discarded rather than reported.
+The numbers below come from an **interleaved** design: each round runs all three
+configurations back-to-back, five rounds, so slow drift hits all three about equally. Each
+configuration also got one discarded warm-up first, and the wrapper's identity was re-verified
+by file size immediately before every launch.
+
+### Results — 5 interleaved rounds
+
+| Configuration | median frame time | 1%-low | worst frame | median FPS |
+|---|---|---|---|---|
+| native D3D9 | **0.840 ms** (0.821–1.574) | 1.917 ms (1.867–3.362) | 4.810 ms | 1190 |
+| D3D9On12 (**DirectX 12**) | **1.056 ms** (1.040–1.078) | 2.107 ms (2.038–2.689) | 6.028 ms | 947 |
+| DXVK (**Vulkan**) | **0.538 ms** (0.528–0.566) | 1.381 ms (1.321–2.332) | 3.556 ms | 1859 |
+
+Paired against native *within each round*:
+
+| | median frame time | 1%-low | consistency |
+|---|---|---|---|
+| D3D9On12 | **+26.2%** (slower) | +6.3% | better in 2 of 5 rounds — **mixed** |
+| DXVK | **−36.0%** (faster) | **−29.9%** | better in **5 of 5** rounds — consistent |
+
+### What this actually says
+
+1. **All three configurations run the game correctly.** Rigs of Rods renders fine on a
+   DirectX 12 driver path and on a Vulkan one, with no code changes and no installation —
+   just one DLL beside the executable. The owner's literal question — *can this run on
+   DirectX 12* — is answered **yes, today**, and it was measured, not argued.
+
+2. **But DirectX 12 is not the fast one.** D3D9On12 is **~26% slower** than the existing D3D9
+   path on median frame time. It does not buy performance. What it does buy is *stability*: its
+   own spread across rounds was 0.038 ms, against native's 0.753 ms.
+
+3. **DXVK — Vulkan, not DirectX 12 — is the only configuration that is clearly faster**, and it
+   won every single round on both median and 1%-low. If the goal behind "upgrade to DX12" is
+   "make it faster on a modern driver", **Vulkan via DXVK is the option that delivers it.**
+
+4. **Native D3D9 was the least consistent** of the three (0.821 → 1.574 ms across rounds) while
+   both translation layers held tight ranges in those same rounds — so this is not machine
+   drift, it is the D3D9 path itself.
+
+### The caveat that limits all of the above
+
+**This scene is far too light to predict gameplay performance.** One vehicle on `simple2` at
+1280×720 runs at **950–1860 FPS**; the GPU is effectively idle and what is being measured is
+**CPU-side API and driver overhead**. That is exactly the thing a translation layer changes, so
+the comparison is meaningful *as an overhead measurement* — but it is not a frame-rate
+prediction for a loaded scene with many vehicles, heavy terrain and shadows, where the GPU
+becomes the constraint and these rankings could change or compress to nothing. Anyone acting on
+Option E should re-measure on a representative scene before committing. The content submodule
+ships only `simple2`, `agora` and `dafsemi`, which is not enough to build one.
+
 ## Experiment 4 — OGRE-Next call-site count
 
 Mechanical count of OGRE API call sites that OGRE-Next changes (`SceneManager`, `Entity`,
@@ -250,30 +367,54 @@ characterisation is "lines that a port has to look at", not "OGRE API calls in R
 
 ---
 
-## Experiments 2 and 3 — NOT RUN
+## How to reproduce these measurements
 
-**These two experiments could not be performed in this environment, and no numbers for them
-are invented below.** This is the one acceptance criterion in issue #2 left unmet.
+Per §9 of issue #2, every measurement names its scene and hardware.
 
-| Missing | Evidence |
-|---|---|
-| CMake | not installed |
-| Conan | not installed |
-| Visual Studio / MSBuild | no installation found |
-| Game content (terrains, vehicles) | `content/` is empty |
+**Hardware / OS:** NVIDIA GeForce RTX 4070 Laptop GPU (driver 32.0.16.1692) with an AMD Radeon
+integrated GPU also present; Windows 11 Pro 10.0.26200.
 
-- **Experiment 2 (D3D11 smoke test)** — needs a full toolchain to build and a content set to
-  launch. The static analysis above predicts the outcome in detail (Cg programs fail to bind;
-  32 fixed-function materials fail without RTSS), but the smoke test is what *settles* it and
-  is still the single highest-information experiment in this issue. It will also turn Option A's
-  wide effort range into a real estimate.
-- **Experiment 3 (translation-layer benchmark)** — needs a built binary, content, and a GPU.
-  Option E's numbers are therefore **unmeasured**; see Option E for exactly what to run.
+**Toolchain:** Visual Studio Build Tools 2026 (MSVC 14.51.36231), Windows SDK 10.0.26100,
+CMake 4.4.3, Conan 2.32.0. Conan has no prebuilt binaries for `compiler.version=195`, so the
+dependency graph builds from source; it completes without errors.
 
-`C:\Windows\System32\d3d9on12.dll` **is** present on this machine, confirming D3D9On12 needs no
-installation — the one Option E fact that could be checked here.
+**Build:**
 
----
+```sh
+git submodule update --init content          # content/ is a submodule, not empty
+conan remote add rigs-of-rods-deps https://nexus.anotherfoxguy.com/repository/rigs-of-rods/ -f
+cmake . -GNinja -DCMAKE_BUILD_TYPE=Release -Bbuild       -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=cmake/conan_provider.cmake       -DCMAKE_INSTALL_PREFIX=redist -DROR_CREATE_CONTENT_FOLDER=ON
+cd build && ninja install
+```
+
+**Scene — identical for every run:** terrain `simple2.terrn2`; **one** vehicle,
+`b6b0UID-semi.truck` (dafsemi), entered; 1280×720 windowed; **VSync off**; FPS limit 0
+(`gfx_fps_limit` default). Settings otherwise default, and unchanged between runs.
+
+**Harness:** `tools/rorbench.as`, run via RoR's own `-runscript`. It discards a 20-second
+warm-up (terrain streaming, shader and material compile, cache fill), then samples per-frame
+delta time for 60 seconds, reports median / 1%-low / best / worst, and quits. The 1%-low is the
+mean of the slowest 1% of frames.
+
+```sh
+RoR.exe -terrain simple2.terrn2 -truck b6b0UID-semi.truck -enter -runscript rorbench.as
+```
+
+Results are written to `RoR.log`, prefixed `BENCH|`.
+
+**Translation layers** are selected by dropping a `d3d9.dll` next to `RoR.exe` — nothing is
+installed system-wide and nothing is written to the registry:
+
+- **native D3D9** — no `d3d9.dll` present.
+- **D3D9On12** — the wrapper from [narzoul/ForceD3D9On12](https://github.com/narzoul/ForceD3D9On12)
+  v1.0.0 (`x64/d3d9.dll`), which forces the D3D9 runtime onto Windows' own `d3d9on12.dll`.
+  Verified active by module inspection: the process loads `d3d9on12.dll`, `d3d12.dll` and
+  `D3D12Core.dll`.
+- **DXVK** — [doitsujin/dxvk](https://github.com/doitsujin/dxvk) v3.1.1 (`x64/d3d9.dll`).
+  Verified active by its own `RoR_d3d9.log` (`DXVK: v3.1.1`, device `NVIDIA GeForce RTX 4070`).
+
+Each configuration ran one discarded warm-up plus three recorded runs, with the wrapper's
+identity re-verified by file size immediately before every launch.
 
 ## The five options
 
@@ -284,23 +425,34 @@ installation — the one Option E fact that could be checked here.
 | **Possible?** | **Yes.** The plugin exists, is built, and is switched off by one CMake line. |
 | **Effort** | **8–20 engineer-weeks.** See the note below on why the floor is not lower. |
 | **Buys** | A supported, modern-driver API. Removes the D3D9 deprecation risk. Keeps OGRE, keeps the fork close to upstream. The necessary first step of *any* real modernization. |
-| **Breaks** | 67 of 72 Cg declarations cannot bind (no D3D11-capable profile). 32 of 48 materials are fixed-function and need RTSS, which is not merely off but **unwired** — `gfx_enable_rtshaders` is read by nothing and `ShaderGenerator` is never initialised. |
+| **Breaks** | **Measured: the game crashes during startup before rendering anything** (Experiment 2) — a mipmap blit D3D11 refuses. Behind that: 67 of 72 Cg declarations cannot bind, and 32 of 48 materials are fixed-function needing RTSS, which is not merely off but **unwired**. |
 | **Maintenance** | Low. Upstream OGRE maintains the backend; the work is one-time. |
 
-Work: (1) stand RTSS up from nothing — initialise `ShaderGenerator`, attach it to the scene
-manager and viewport, wire `gfx_enable_rtshaders` to something,
-register the material-scheme listener across the game, not just terrain objects; (2) give the
-67 Cg declarations a D3D11-capable profile (`vs_4_0`/`ps_4_0`, or `hlslv`/`hlslf`), then fix the
-SM2/SM3-era Cg that fails to compile at SM4 — texture sampling and semantics are the usual
-casualties; (3) ship `RenderSystem_Direct3D11` and uncomment `source/main/CMakeLists.txt:496`.
+Work, in the order the blockers actually appear:
 
-**On the estimate:** an earlier draft said 4–8 weeks. That floor is not defensible against
-this document's own evidence — item (1) is building RTSS wiring from nothing, item (2) is
-porting 67 Cg declarations across 17 files of which 10 are third-party Caelum, Hydrax layers
-its own material manager on top, and **none of it can be smoke-tested here** because
-Experiments 2 and 3 could not run. Four weeks assumes a working build and content set that do
-not currently exist. The `upstream/ogre-14` branch (D3D11 already on for Windows) is the
-cheapest way to collapse this range — run the smoke test there first and re-estimate.
+1. **Fix the startup crash** (Experiment 2). Either stop requesting generated mipmaps for
+   textures whose upload path D3D11 rejects, or route mip generation through
+   `TU_AUTOMIPMAP`/GPU generation instead of `blitFromMemory`. This is the first thing that
+   happens and nothing else can be tested until it is done.
+2. **Stand RTSS up from nothing** — initialise `ShaderGenerator`, attach it to the scene manager
+   and viewport, wire `gfx_enable_rtshaders` to something, and register the material-scheme
+   listener across the game rather than only for terrain objects.
+3. **Give the 67 Cg declarations a D3D11-capable profile** (`vs_4_0`/`ps_4_0`, or
+   `hlslv`/`hlslf`), then fix the SM2/SM3-era Cg that fails to compile at SM4 — texture
+   sampling and semantics are the usual casualties.
+4. Uncomment `source/main/CMakeLists.txt:496`. **Nothing else is needed to ship the plugin** —
+   `RenderSystem_Direct3D11.dll` is already copied into the runtime directory by the existing
+   build, as Experiment 2 confirmed.
+
+**On the estimate:** an earlier draft said 4–8 weeks, on the assumption that the first failure
+would be shaders. Experiment 2 disproved that — the game does not reach the shader stage at
+all, so there is a whole blocker ahead of the work that was being estimated, and the Cg cost
+sits entirely *behind* an unknown: nobody has yet seen what D3D11 does once it gets past
+startup. The floor is raised accordingly. Item (2) is building RTSS wiring from nothing and
+item (3) is porting 67 Cg declarations across 17 files, 10 of them third-party Caelum, with
+Hydrax layering its own material manager on top. The `upstream/ogre-14` branch (D3D11 already
+enabled for Windows) remains the cheapest way to collapse this range — fix the startup crash
+there and the rest of the picture becomes measurable in an afternoon.
 
 **Risks:** the SM4 recompile of decade-old Cg is the unknown, and it is the whole variance in
 the estimate. Caelum (10 of the 17 Cg files) is third-party. Keep D3D9 selectable throughout —
@@ -413,7 +565,7 @@ permanent tax on a fork whose renderer is otherwise free.
 |---|---|
 | **Possible?** | **Yes, today, with no code changes.** |
 | **Effort** | **Hours to a few days** — entirely evaluation, not development. |
-| **Buys** | RoR's existing D3D9 calls execute on a **DirectX 12** (D3D9On12) or **Vulkan** (DXVK) driver path. Often the practical fix on modern GPUs with weak native D3D9 drivers. |
+| **Buys** | **Measured (Experiment 3): DXVK gives −36% median frame time and −29.9% 1%-low, winning 5 of 5 rounds. D3D9On12 buys no speed at all — ~26% *slower* than native — but is the steadiest of the three.** Both run the game correctly with no code changes. |
 | **Breaks** | Nothing in the codebase. Ships as a deployment/config choice, per-user and reversible. |
 | **Maintenance** | Near zero. D3D9On12 is part of Windows; DXVK is externally maintained. |
 
@@ -423,16 +575,21 @@ permanent tax on a fork whose renderer is otherwise free.
   Drop-in DLLs next to the executable. Windows is *not officially supported* by the project,
   though it is widely used there — a real caveat to weigh.
 
-Published comparisons suggest the win is highly hardware-dependent: DXVK substantially
-outperforming D3D9On12 on Intel Arc, where native D3D9 drivers are weak
-([Intel community report](https://community.intel.com/t5/Intel-Arc-Discrete-Graphics/Suggestions-DXVK-outperforms-D3D9On12-when-running-DirectX-9-on/m-p/1428393)),
-against a general expectation that translation costs some frames versus a good native driver
-([PCGamingWiki](https://www.pcgamingwiki.com/wiki/DXVK)).
+**This has now been measured** — see Experiment 3 for the full table, method and caveats. The
+short version on an RTX 4070 Laptop, one vehicle on `simple2` at 1280×720:
 
-**This must be measured before it is relied upon, and it was not measured here.** To close that
-gap: one fixed scene — named terrain, fixed vehicle count, fixed resolution and settings —
-three runs each of native D3D9, D3D9On12, and DXVK, reporting **median and 1%-low frame time**
-plus the hardware. Record all of it here per §9 of issue #2.
+- **DXVK (Vulkan): 0.538 ms median vs native's 0.840 ms** — faster in every round, on both
+  median and 1%-low.
+- **D3D9On12 (DirectX 12): 1.056 ms median** — *slower* than native, but with the tightest
+  round-to-round spread of the three.
+
+That ordering matches the published expectation that DXVK tends to beat D3D9On12
+([Intel community report](https://community.intel.com/t5/Intel-Arc-Discrete-Graphics/Suggestions-DXVK-outperforms-D3D9On12-when-running-DirectX-9-on/m-p/1428393),
+[PCGamingWiki](https://www.pcgamingwiki.com/wiki/DXVK)), and sharpens it: here DXVK beat native
+too, while D3D9On12 did not.
+
+**The measurement's limit is the scene, not the method.** At 950–1860 FPS the GPU is idle and
+this is a CPU-overhead benchmark. Re-measure on a heavy scene before shipping a default.
 
 **What it does *not* buy:** it is a driver-path and compatibility win, not an engine-architecture
 win. It does not remove Cg, does not modernize the material system, and does not advance
@@ -442,16 +599,16 @@ Options A–D by a single step.
 
 ## Recommendation
 
-**Evaluate Option E now and ship it if the numbers hold; treat Option A as the only
-engine-side modernization worth funding.**
+**Ship DXVK as a supported option now; treat Option A as the only engine-side modernization
+worth funding. Do not pursue DirectX 12 — measured, it is the slowest of the three.**
 
-Option E is the only thing in this document that answers the owner's literal question at a cost
-worth paying: it puts RoR's rendering on a DirectX 12 driver path today, with no code change, no
-rebuild, no risk to the D3D9 path, and a per-user switch that can be reverted instantly — and on
-the modern GPUs where native D3D9 drivers are weakest, it is likely to be the single largest
-practical improvement available. It should be measured and, if the numbers hold, shipped as a
-documented deployment option. It is explicitly *not* modernization: it buys frames and driver
-compatibility, not architecture. If and when the goal becomes a genuinely modern renderer, the
+Experiment 3 settled what was previously a guess, and it inverted half of it. A translation
+layer is still the only thing in this document that costs nothing — no code change, no rebuild,
+no risk to the D3D9 path, a single DLL the user can delete — but **the DirectX 12 layer is not
+the one to ship.** D3D9On12 measured ~26% *slower* than the existing D3D9 path. **DXVK, which
+maps D3D9 onto Vulkan, was faster in all five rounds on both median (−36%) and 1%-low
+(−29.9%)**, and is the one worth shipping as a documented, opt-in option. It is explicitly
+*not* modernization: it buys frames and driver compatibility, not architecture. If and when the goal becomes a genuinely modern renderer, the
 entry point is **Option A** — not because D3D11 is exciting, but because its real content is
 killing the Cg dependency and wiring up RTSS, and *that work is an unavoidable prerequisite for
 Options B, C and D alike*. Do it once, under the cheapest option that forces it, while D3D9
@@ -470,9 +627,12 @@ alone.
 
 ### Open items
 
-1. **Experiment 2 (D3D11 smoke test)** — unrun; it converts Option A's 4–8 week range into a
-   real number and is the highest-information experiment remaining.
-2. **Experiment 3 (translation-layer benchmark)** — unrun; Option E is recommended on
-   qualitative grounds and a zero-cost/zero-risk profile, and should be measured before it is
-   relied upon.
+All four experiments required by issue #2 have now been run. What remains:
+
+1. **Re-measure Option E on a representative scene.** The benchmark ran at 950–1860 FPS on one
+   vehicle, which measures CPU-side driver overhead rather than gameplay. The content submodule
+   does not ship a heavy enough terrain to do better; this needs real content.
+2. **Decide whether to ship DXVK**, and if so whether as an opt-in download or bundled — note
+   DXVK does not officially support Windows, which is a support-burden question, not a
+   technical one.
 3. **Owner confirmation** of this recommendation in issue #2, per that issue's definition of done.
