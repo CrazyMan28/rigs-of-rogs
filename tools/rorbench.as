@@ -17,7 +17,16 @@ float elapsed = 0.0f;
 bool  done    = false;
 
 // Warm-up covers terrain streaming, shader/material compile and cache fill.
-// Anything measured inside it is startup cost, not steady-state rendering.
+//
+// CAVEAT: `elapsed` starts accumulating from the first frameStep after the
+// script loads, and -runscript scripts are queued at app startup - before the
+// terrain-load message - while ScriptEngine::framestep runs every main-loop
+// iteration regardless of AppState. So this 20s window is SHARED between the
+// load phase and post-load settling; it does not guarantee 20s of steady-state
+// warm-up. It held for the shipped data (the slowest sampled frame across all
+// 15 runs was 11.4 ms, so no multi-second loading frame reached a sample set),
+// but a heavier terrain could eat the window. Gate on a scene-ready signal if
+// you re-use this on bigger content.
 const float WARMUP   = 20.0f;
 const float DURATION = 60.0f;
 

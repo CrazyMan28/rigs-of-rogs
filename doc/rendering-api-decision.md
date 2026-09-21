@@ -24,8 +24,8 @@ make the game look or run better by itself.
 
 **But you can run RoR on DirectX 12 today, and it was measured — it just isn't worth it.**
 Windows already ships `d3d9on12.dll`, which runs RoR's existing DirectX 9 calls on a DirectX 12
-driver with no code changes and no rebuild. It works: the game runs correctly that way
-(Experiment 3). It is also **not faster** — roughly 28% slower than a healthy D3D9 path, though
+driver with no code changes and no rebuild. It works: the game loaded the terrain, spawned a
+vehicle and ran an 80-second benchmark to completion that way without crashing (Experiment 3). It is also **not faster** — roughly 28% slower than a healthy D3D9 path, though
 it never had a bad round, which D3D9 did. The translation layer that *is* faster maps D3D9 onto
 **Vulkan**, not DX12 — DXVK ran 36% faster than native on median frame time and was faster in
 **all five** test rounds. So the honest answer to "should we move to DX12" is: you can, cheaply,
@@ -256,6 +256,13 @@ size are not the same and they have to be the same in DX11.
 Triggered while loading OGRE's built-in 8×8 `Warning` texture during Overlay/Font
 initialisation, immediately after `Registering ResourceManager for type Font`.
 
+The full startup log is committed as
+[`doc/rendering-api-d3d11-crash.log`](rendering-api-d3d11-crash.log) so this is checkable
+rather than asserted. The relevant lines: `92` selects the D3D11 render system, `82` shows the
+Cg plugin being *installed* and never used again, `245` is the texture arriving as
+`PF_R5G6B5 8x8 with 3 generated mipmaps … Internal format is PF_A8B8G8R8`, and `246–248` are
+the exception and the popup that follows it.
+
 **This inverts this document's own prediction.** The analysis above predicted the first failure
 would be Cg programs hitting `D3D11UnsupportedGpuProgram`. It is not. The Cg plugin never gets
 that far — the log shows only `Installing plugin: Cg Program Manager`, with no program ever
@@ -329,10 +336,15 @@ halves its apparent penalty, from +12.9% to +6.3%.
 
 ### What this actually says
 
-1. **All three configurations run the game correctly.** Rigs of Rods renders fine on a
-   DirectX 12 driver path and on a Vulkan one, with no code changes and no installation —
-   just one DLL beside the executable. The owner's literal question — *can this run on
-   DirectX 12* — is answered **yes, today**, and it was measured, not argued.
+1. **All three configurations completed every run without crashing.** Rigs of Rods loads the
+   terrain, spawns a vehicle and renders for 80 seconds on a DirectX 12 driver path and on a
+   Vulkan one, with no code changes and no installation — just one DLL beside the executable.
+   The owner's literal question — *can this run on DirectX 12* — is answered **yes, today**, and
+   it was measured, not argued.
+
+   **Scope of that claim:** the harness samples frame times and quits. It does **not** compare
+   rendering output, so "it ran" is established and "it looks right" is not. Anyone shipping a
+   translation layer should eyeball the result before trusting it.
 
 2. **But DirectX 12 is not the fast one, and the comparison is not a single number.** Native
    D3D9 was **bimodal**: ~0.83 ms in rounds 1–3, then ~1.50 ms in rounds 4–5. D3D9On12 sat at a
@@ -381,7 +393,13 @@ halves its apparent penalty, from +12.9% to +6.3%.
 
 ### The caveat that limits all of the above
 
-**This scene is far too light to predict gameplay performance.** One vehicle on `simple2` at
+**Two limits apply to every number above: the scene, and the hardware.**
+
+*Hardware:* one GPU (RTX 4070 Laptop), one vendor, one driver version. Published accounts make
+the DXVK/D3D9On12 ordering hardware-dependent, so this does not generalise to AMD, Intel or
+older parts without re-testing.
+
+*Scene:* **far too light to predict gameplay performance.** One vehicle on `simple2` at
 1280×720 runs at **950–1860 FPS**; the GPU is effectively idle and what is being measured is
 **CPU-side API and driver overhead**. That is exactly the thing a translation layer changes, so
 the comparison is meaningful *as an overhead measurement* — but it is not a frame-rate
@@ -466,7 +484,8 @@ installed system-wide and nothing is written to the registry:
 - **DXVK** — [doitsujin/dxvk](https://github.com/doitsujin/dxvk) v3.1.1 (`x64/d3d9.dll`).
   Verified active by its own `RoR_d3d9.log` (`DXVK: v3.1.1`, device `NVIDIA GeForce RTX 4070`).
 
-Each configuration ran one discarded warm-up plus three recorded runs, with the wrapper's
+Each configuration got one discarded warm-up, then **five interleaved recorded rounds** — one
+round runs all three configurations back-to-back before the next begins — with the wrapper's
 identity re-verified by file size immediately before every launch.
 
 ## The five options
@@ -618,7 +637,7 @@ permanent tax on a fork whose renderer is otherwise free.
 |---|---|
 | **Possible?** | **Yes, today, with no code changes.** |
 | **Effort** | **Hours to a few days** — entirely evaluation, not development. |
-| **Buys** | **Measured (Experiment 3): DXVK gives −36% median frame time and −29.9% 1%-low, faster in 5 of 5 rounds. D3D9On12 buys no speed — ~28% slower than a healthy D3D9 path — but never had a bad round, which native did.** Both run the game correctly with no code changes. |
+| **Buys** | **Measured (Experiment 3): DXVK gives −36% median frame time and −29.9% 1%-low, faster in 5 of 5 rounds. D3D9On12 buys no speed — ~28% slower than a healthy D3D9 path — but never had a bad round, which native did.** Both completed every run without crashing, with no code changes (rendering output was not compared). |
 | **Breaks** | Nothing in the codebase. Ships as a deployment/config choice, per-user and reversible. |
 | **Maintenance** | Near zero. D3D9On12 is part of Windows; DXVK is externally maintained. |
 
@@ -634,12 +653,18 @@ short version on an RTX 4070 Laptop, one vehicle on `simple2` at 1280×720:
 - **DXVK (Vulkan): 0.538 ms median vs native's 0.840 ms** — faster in every round, on both
   median and 1%-low.
 - **D3D9On12 (DirectX 12): 1.056 ms median** — slower than native's good rounds (~0.83 ms),
-  faster than its degraded ones (~1.50 ms), and the steadiest of the three (0.038 ms spread).
+  faster than its degraded ones (~1.50 ms), and the steadiest in relative terms (3.6% spread,
+  against DXVK's 7.0% and native's 68.6%; DXVK ties it on absolute spread at 0.038 ms).
 
-That ordering matches the published expectation that DXVK tends to beat D3D9On12
-([Intel community report](https://community.intel.com/t5/Intel-Arc-Discrete-Graphics/Suggestions-DXVK-outperforms-D3D9On12-when-running-DirectX-9-on/m-p/1428393),
-[PCGamingWiki](https://www.pcgamingwiki.com/wiki/DXVK)), and sharpens it: here DXVK beat native
-too, while D3D9On12 did not.
+**Read those numbers as hardware-specific.** Published accounts make the DXVK-vs-D3D9On12 gap
+strongly hardware-dependent — DXVK substantially outperforms D3D9On12 on Intel Arc, *where the
+native D3D9 driver is weak*
+([Intel community report](https://community.intel.com/t5/Intel-Arc-Discrete-Graphics/Suggestions-DXVK-outperforms-D3D9On12-when-running-DirectX-9-on/m-p/1428393)) —
+against a general expectation that translation *costs* frames versus a good native driver
+([PCGamingWiki](https://www.pcgamingwiki.com/wiki/DXVK)). This test ran on an RTX 4070 with a
+mature NVIDIA D3D9 driver, which is the case where translation is *least* expected to help, and
+DXVK still won every clean round. That makes the result notable — but it is **one GPU, one
+vendor, one driver version**, and the ranking could differ on AMD, Intel, or older hardware.
 
 **The measurement's limit is the scene, not the method.** At 950–1860 FPS the GPU is idle and
 this is a CPU-overhead benchmark. Re-measure on a heavy scene before shipping a default.
