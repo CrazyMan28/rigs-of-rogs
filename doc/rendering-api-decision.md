@@ -316,12 +316,16 @@ flatters DXVK; the **true** worst frame across all five rounds is **D3D9On12's 7
 best of the three — with DXVK's 11.384 ms the single worst value in the dataset. DXVK wins
 decisively on typical frames and loses on the tail's tail.
 
-Paired against native *within each round*:
+Paired against native *within each round*. **Rounds 4–5 were disturbed (see below), so the
+clean columns are the ones to quote**; both are shown because they differ:
 
-| | median frame time | 1%-low | consistency |
-|---|---|---|---|
-| D3D9On12 | +26.2% median of deltas | +6.3% | **mixed** — slower in rounds 1–3, faster in 4–5 |
-| DXVK | **−36.0%** | **−29.9%** | faster in **5 of 5** rounds |
+| | median — clean (r1–3) | median — all 5 | 1%-low — clean | 1%-low — all 5 |
+|---|---|---|---|---|
+| D3D9On12 | +28.3% | +26.2% | **+12.9%** | +6.3% |
+| DXVK | **−35.9%** | −36.0% | **−29.2%** | −29.9% |
+
+DXVK is robust to the choice; **D3D9On12's 1%-low is not** — averaging in the disturbed rounds
+halves its apparent penalty, from +12.9% to +6.3%.
 
 ### What this actually says
 
@@ -335,18 +339,30 @@ Paired against native *within each round*:
    near-constant 1.05 ms throughout. So D3D9On12 is **~28% slower than native at its best and
    ~30% faster than native at its worst** — the headline "+26%" is just where the median of the
    per-round deltas happens to land, and quoting it alone would be misleading. **D3D9On12 never
-   beats a healthy D3D9 path; it is simply immune to whatever degraded it.**
+   beats a healthy D3D9 path.** Note the "~30% faster" half comes entirely from the two
+   disturbed rounds, where native's own number is not trustworthy, so it should not be read as
+   a property of D3D9On12 — only its *median* was unaffected by the disturbance.
 
    *Rounds 4 and 5 were disturbed, and this document should not pretend otherwise.* An earlier
    revision claimed the degradation was native-only and therefore "not machine-wide". That was
-   wrong, and the shipped CSV refutes it: **all three configurations lost average FPS in rounds
-   4–5** — native −20.2%, DXVK −19.5%, D3D9On12 −16.5% — and DXVK's tail degraded as badly as
-   native's (worst frame +157% vs native's +151%). Something disturbed the machine.
+   wrong. Measured on the harness's own in-window frame count and worst frame (rounds 1–3 mean
+   → rounds 4–5 mean):
 
-   What survives that correction is narrower but still real: **native's *median* frame time was
-   uniquely sensitive** to the disturbance (+81%, 0.83 → 1.50 ms) while both wrappers' medians
-   moved under 3%. And **D3D9On12's tail was the only one that did not degrade at all** (worst
-   frame actually *improved* 25%).
+   | | frames counted | worst frame | 1%-low |
+   |---|---|---|---|
+   | native D3D9 | **−37.7%** | +151.0% | +77.6% |
+   | DXVK | −9.5% | **+156.7%** | +41.3% |
+   | D3D9On12 | −1.3% | **−24.7%** (improved) | +3.4% |
+
+   Two of the three degraded, DXVK's tail as badly as native's. Something disturbed the machine.
+   (`avgfps` is deliberately not used here: it comes from `RenderWindow::getStatistics()` over
+   the whole session rather than the harness's 60-second window, and native's round-5 value
+   actually *rose*. `frames` is counted in-window by the harness and tells the story cleanly.)
+
+   What survives the correction is narrower but still real: **native's *median* frame time was
+   uniquely sensitive** — +81.5%, against D3D9On12's +0.2% and DXVK's +5.6%. A 15× gap, not the
+   "under 3% for both wrappers" an earlier revision claimed. And **D3D9On12's tail was the only
+   one that did not degrade.**
 
 3. **DXVK — Vulkan, not DirectX 12 — is the only configuration that is clearly faster**, and it
    won every single round on both median and 1%-low. If the goal behind "upgrade to DX12" is
@@ -354,10 +370,14 @@ Paired against native *within each round*:
 
 4. **The clean comparison is rounds 1–3**, before the disturbance. There the picture is
    unambiguous and tight: native 0.824 ms, D3D9On12 1.056 ms, DXVK 0.538 ms — DXVK **−35%**
-   against native, D3D9On12 **+28%**, and DXVK also holds the best true worst frame
-   (3.556 ms vs native's 4.810 ms and D3D9On12's 7.977 ms). Rounds 4–5 do not change that
+   against native, D3D9On12 **+28%**, and within those same three rounds DXVK also holds the
+   best worst frame (3.556 ms, against native's 4.810 ms and D3D9On12's 7.977 ms — note
+   native's happens to coincide with its all-five median in the table above). Rounds 4–5 do not change that
    ranking; they only add the observation that native's median is the most fragile of the three
-   under load, and that D3D9On12's tail is the most robust.
+   under load, and that D3D9On12's tail is the most robust. Note the scope on that worst-frame
+   figure: **within rounds 1–3** DXVK holds the best true worst frame (3.556 ms); **across all
+   five** it reverses and D3D9On12 holds it (7.977 ms), because DXVK's single disturbed round
+   produced the dataset's worst value.
 
 ### The caveat that limits all of the above
 
