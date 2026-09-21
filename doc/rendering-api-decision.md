@@ -5,7 +5,7 @@
 **Audited against:** this checkout, `master` @ `8c821c052`, OGRE **1.11.6.1** (`conanfile.py:25`)
 
 > Every count in this document is re-derivable. Run `tools/verify-rendering-api-audit.sh`;
-> it re-computes all 20 tree-dependent figures cited below and exits non-zero if any has
+> it re-computes all 24 tree-dependent figures cited below and exits non-zero if any has
 > drifted. The tree moves — do not trust a number here that the script no longer confirms.
 
 ---
@@ -93,11 +93,15 @@ to emit them. `CgProgramManager` is still present in OGRE `master` today.
 The bad news is what RoR actually declares. Every `profiles` line in the tree:
 
 ```
-24  profiles ps_2_0 arbfp1          5  profiles ps_2_x arbfp1          2  profiles vs_2_0 arbvp1 vp30
-11  profiles vs_1_1 arbvp1          4  profiles vs_4_0 vs_1_1 arbvp1   1  profiles vs_4_0 vs_2_0 vs_1_1 arbvp1
- 5  profiles vs_2_0 arbvp1          4  profiles ps_3_0 fp40 arbfp1     1  profiles vs_2_x arbvp1 vp30
- 5  profiles ps_3_0 arbfp1          3  profiles ps_2_x arbfp1          1  profiles ps_2_x arbfp1 fp30
-                                    3  profiles ps_2_0 arbfp1 fp30
+count  profile list                        count  profile list
+   24  profiles ps_2_0 arbfp1                  3  profiles ps_2_0 arbfp1 fp30
+   12  profiles vs_1_1 arbvp1                  2  profiles vs_3_0 vp40 arbvp1
+    8  profiles ps_2_x arbfp1                  2  profiles vs_2_0 arbvp1 vp30
+    5  profiles vs_2_0 arbvp1                  1  profiles vs_4_0 vs_2_0 vs_1_1 arbvp1
+    5  profiles ps_3_0 arbfp1                  1  profiles vs_2_x arbvp1 vp30
+    4  profiles vs_4_0 vs_1_1 arbvp1           1  profiles ps_2_x arbfp1 fp30
+    4  profiles ps_3_0 fp40 arbfp1
+                                             ——— 13 distinct lists, 72 declarations
 ```
 
 Every entry is either a **D3D9-era Shader Model 1–3 profile** or an **OpenGL ARB/NV profile**
@@ -124,9 +128,17 @@ rendered via the RTShaderSystem, which auto-generates them. In this tree:
 
 - **32 of 48** `.material` files contain no `vertex_program_ref`/`fragment_program_ref` at all —
   they are fixed-function.
-- `gfx_enable_rtshaders` defaults to **`"false"`** (`source/main/system/CVar.cpp:208`).
-- RTSS is invoked at exactly **2** call sites, both in `TerrainObjectManager.cpp:808-809`, and
-  only for terrain objects using `mat_name_generate`. It is not initialised game-wide.
+- **RTSS is unwired, not merely disabled.** `gfx_enable_rtshaders` is declared
+  (`Application.cpp:269`), externed (`Application.h:815`) and created with default `"false"`
+  (`CVar.cpp:208`) — and **read by nothing**. Those are its only three references in `source/`.
+- `Ogre::RTShader::ShaderGenerator::initialize()` is **never called anywhere in `source/`**. The
+  only RTSS uses at all are two `getSingleton()` calls in `TerrainObjectManager.cpp:808-809`,
+  for terrain objects with `mat_name_generate` — reached without an initialised singleton.
+
+  So Option A cannot "turn RTSS on"; there is no switch. RTSS has to be stood up from nothing:
+  initialise the generator, attach it to the scene manager and viewport, and register a material
+  scheme listener game-wide. (The two existing `getSingleton()` call sites look like a latent bug
+  independent of this decision, and are worth a separate issue.)
 
 One point in favour: `resources/rtshader/` already ships **9 HLSL** FFPLib variants alongside
 9 Cg and 9 GLSL, so RTSS itself has a working D3D11 path. It just isn't turned on.
@@ -188,10 +200,11 @@ installation — the one Option E fact that could be checked here.
 | **Possible?** | **Yes.** The plugin exists, is built, and is switched off by one CMake line. |
 | **Effort** | **4–8 engineer-weeks**, wide because Experiment 2 has not been run. |
 | **Buys** | A supported, modern-driver API. Removes the D3D9 deprecation risk. Keeps OGRE, keeps the fork close to upstream. The necessary first step of *any* real modernization. |
-| **Breaks** | 67 of 72 Cg declarations cannot bind (no D3D11-capable profile). 32 of 48 materials are fixed-function and need RTSS enabled game-wide — today it defaults off and is wired into 2 terrain-only call sites. |
+| **Breaks** | 67 of 72 Cg declarations cannot bind (no D3D11-capable profile). 32 of 48 materials are fixed-function and need RTSS, which is not merely off but **unwired** — `gfx_enable_rtshaders` is read by nothing and `ShaderGenerator` is never initialised. |
 | **Maintenance** | Low. Upstream OGRE maintains the backend; the work is one-time. |
 
-Work: (1) enable RTSS globally — flip `gfx_enable_rtshaders`, initialise `ShaderGenerator`,
+Work: (1) stand RTSS up from nothing — initialise `ShaderGenerator`, attach it to the scene
+manager and viewport, wire `gfx_enable_rtshaders` to something,
 register the material-scheme listener across the game, not just terrain objects; (2) give the
 67 Cg declarations a D3D11-capable profile (`vs_4_0`/`ps_4_0`, or `hlslv`/`hlslf`), then fix the
 SM2/SM3-era Cg that fails to compile at SM4 — texture sampling and semantics are the usual
@@ -224,6 +237,30 @@ breaking changes at each. Per issue #2's invariant, this is a **`ror-dependencie
 plus a `REQUIRED_DEPS_VERSION` change** (`CMakeLists.txt:19`, currently `30`) — a change in
 another repository, not a local edit. Note `linux-native.yml` pins `v1.11.6` explicitly and
 would need updating too.
+
+#### Upstream has already done most of this jump — and it did not solve Cg
+
+This checkout already fetches three upstream branches that attempt exactly this work:
+
+| Branch | OGRE pin | Last commit | Cg declarations | `Plugin_CgProgramManager` | D3D11 |
+|---|---|---|---|---|---|
+| `upstream/ogre-1.12` | — | 2021-05-31 | 75 | loaded | still commented out |
+| `upstream/ogre-13` | `ogre3d/14.1.0` | 2023-09-23 | 68 | loaded | still commented out |
+| `upstream/ogre-14` | `ogre3d/14.1.2` | 2024-02-12 | 68 | loaded | still commented out |
+
+This cuts both ways, and both directions matter.
+
+**It lowers Option B's cost:** the engine-API half of the jump is largely done and directly
+fetchable — `upstream/ogre-14` already pins **OGRE 14.1.2**, which ships the Vulkan render
+system. Rebasing onto that work is far cheaper than doing the 1.11 → 14.x port cold, and the
+3–6 month estimate above should be read as an upper bound if that branch is used as the base.
+Both branches have been stalled since 2024, so expect to finish and re-validate them.
+
+**And it is the single strongest piece of evidence in this document:** upstream RoR bumped
+OGRE all the way to 14.1.2 — an engine with D3D11 *and* Vulkan already built — and **still ships
+68 Cg programs, still loads the Cg plugin, and still leaves D3D11 commented out.** The version
+bump was never the hard part. **Cg is.** That is why issue #4 is not a side quest but the whole
+of the engine-side work, and why no option in this document can route around it.
 
 ### Option C — migrate to OGRE-Next (2.3 / 3.0)
 

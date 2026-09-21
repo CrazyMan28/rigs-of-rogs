@@ -84,6 +84,13 @@ profiles_normalised() {
         --include=*.material --include=*.program resources | sed 's/[[:space:]]*$//'
 }
 
+# The frequency table printed in the document is generated from exactly this.
+check "distinct 'profiles' lists (rows in the document's table)" "13" \
+    "$(profiles_normalised | sed 's/^[[:space:]]*//' | sort -u | wc -l | tr -d ' ')"
+
+check "total 'profiles' declarations (table must sum to this)" "72" \
+    "$(profiles_normalised | wc -l | tr -d ' ')"
+
 check "declarations using vs_1_1 with no SM4/SM5 alternative" "12" \
     "$(profiles_normalised | grep -E '\bvs_1_1\b' | grep -vcE '\b(vs_4_0|vs_5_0)\b')"
 
@@ -103,6 +110,17 @@ echo "== RTShaderSystem (D3D11 has no fixed-function pipeline) =="
 
 check "gfx_enable_rtshaders default" "false" \
     "$(grep -oE '"gfx_enable_rtshaders".*"(true|false)"' source/main/system/CVar.cpp | grep -oE '"(true|false)"$' | tr -d '"')"
+
+# Declaration + extern + creation, and nothing else: the CVar is never read, so
+# RTSS is unwired rather than switched off. If this becomes 4+, something now
+# reads it and the "unwired" diagnosis in the document needs revisiting.
+check "gfx_enable_rtshaders references in source/ (decl+extern+create only)" "3" \
+    "$(grep -rc 'gfx_enable_rtshaders' source --include=*.cpp --include=*.h \
+        | awk -F: '{s+=$NF} END{print s+0}')"
+
+check "ShaderGenerator::initialize() calls in source/" "0" \
+    "$(grep -rc 'ShaderGenerator::initialize' source --include=*.cpp --include=*.h \
+        | awk -F: '{s+=$NF} END{print s+0}')"
 
 check "RTShader::ShaderGenerator call sites in source/" "2" \
     "$(grep -rn 'RTShader::ShaderGenerator::getSingleton' source --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
