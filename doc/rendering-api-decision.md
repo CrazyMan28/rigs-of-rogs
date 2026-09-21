@@ -16,7 +16,7 @@
 how much work you are willing to spend.** RoR renders through OGRE, and *no version of OGRE
 has a DirectX 12 backend at all* — not the 1.x line this fork pins, and not OGRE-Next. There
 is nothing to switch on and nothing to upgrade to. The only route to literal DX12 is to write
-a Direct3D 12 render system for OGRE yourself, from scratch — roughly one to two engineer-years
+a Direct3D 12 render system for OGRE yourself, from scratch — roughly two engineer-years
 of specialist graphics work, permanently maintained by this fork alone, and it would still not
 make the game look or run better by itself.
 
@@ -347,10 +347,10 @@ practical improvement available. It should be measured and, if the numbers hold,
 documented deployment option. It is explicitly *not* modernization: it buys frames and driver
 compatibility, not architecture. If and when the goal becomes a genuinely modern renderer, the
 entry point is **Option A** — not because D3D11 is exciting, but because its real content is
-killing the Cg dependency and enabling RTSS, and *that work is an unavoidable prerequisite for
+killing the Cg dependency and wiring up RTSS, and *that work is an unavoidable prerequisite for
 Options B, C and D alike*. Do it once, under the cheapest option that forces it, while D3D9
 remains selectable as a fallback. Options C and D are out of proportion to this fork: C is an
-engine rewrite touching 173 files that still does not deliver DX12, and D is one to two
+engine rewrite touching 173 files that still does not deliver DX12, and D is roughly two
 engineer-years of specialist work to build and then permanently maintain a graphics backend
 alone.
 
