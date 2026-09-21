@@ -277,8 +277,8 @@ compiled. **The Cg problem is real but it is the *second* blocker, not the first
   `ContentManager.cpp:236`), so every texture requests 5 mip levels. Under D3D9 the `Warning`
   texture loads natively as `PF_R5G6B5` with no mip generation; under D3D11 it is converted to
   `PF_A8B8G8R8` **with 3 generated mipmaps**, and that mip upload is the mismatched blit.
-- **This limitation is still present in OGRE `master`** (same `OGRE_EXCEPT`, now at
-  `OgreD3D11HardwarePixelBuffer.cpp:280`), so it is not something a version bump fixes.
+- **This limitation is still present in OGRE `master`** (same `OGRE_EXCEPT`, the guard at
+  `OgreD3D11HardwarePixelBuffer.cpp:280` with the throw at `282-284`), so it is not something a version bump fixes.
 
 It is a RoR-side setting meeting a standing OGRE D3D11 limitation, so it *is* fixable — but it
 is a third work item for Option A that nobody had counted, and it sits *ahead* of the Cg work.
@@ -348,7 +348,7 @@ halves its apparent penalty, from +12.9% to +6.3%.
 
 2. **But DirectX 12 is not the fast one, and the comparison is not a single number.** Native
    D3D9 was **bimodal**: ~0.83 ms in rounds 1–3, then ~1.50 ms in rounds 4–5. D3D9On12 sat at a
-   near-constant 1.05 ms throughout. So D3D9On12 is **~28% slower than native at its best and
+   near-constant 1.06 ms throughout. So D3D9On12 is **~28% slower than native at its best and
    ~30% faster than native at its worst** — the headline "+26%" is just where the median of the
    per-round deltas happens to land, and quoting it alone would be misleading. **D3D9On12 never
    beats a healthy D3D9 path.** Note the "~30% faster" half comes entirely from the two
@@ -400,7 +400,7 @@ the DXVK/D3D9On12 ordering hardware-dependent, so this does not generalise to AM
 older parts without re-testing.
 
 *Scene:* **far too light to predict gameplay performance.** One vehicle on `simple2` at
-1280×720 runs at **950–1860 FPS**; the GPU is effectively idle and what is being measured is
+1280×720 runs at **635–1895 FPS**; the GPU is effectively idle and what is being measured is
 **CPU-side API and driver overhead**. That is exactly the thing a translation layer changes, so
 the comparison is meaningful *as an overhead measurement* — but it is not a frame-rate
 prediction for a loaded scene with many vehicles, heavy terrain and shadows, where the GPU
@@ -512,7 +512,8 @@ Work, in the order the blockers actually appear:
 3. **Give the 67 Cg declarations a D3D11-capable profile** (`vs_4_0`/`ps_4_0`, or
    `hlslv`/`hlslf`), then fix the SM2/SM3-era Cg that fails to compile at SM4 — texture
    sampling and semantics are the usual casualties.
-4. Uncomment `source/main/CMakeLists.txt:496`. **Nothing else is needed to ship the plugin** —
+4. Clear `source/main/CMakeLists.txt:496` — that line *injects* the `# ` marker into
+   `plugins.cfg.in`, so it is deleted or guarded, not uncommented. **Nothing else is needed to ship the plugin** —
    `RenderSystem_Direct3D11.dll` is already copied into the runtime directory by the existing
    build, as Experiment 2 confirmed.
 
@@ -666,7 +667,7 @@ mature NVIDIA D3D9 driver, which is the case where translation is *least* expect
 DXVK still won every clean round. That makes the result notable — but it is **one GPU, one
 vendor, one driver version**, and the ranking could differ on AMD, Intel, or older hardware.
 
-**The measurement's limit is the scene, not the method.** At 950–1860 FPS the GPU is idle and
+**The measurement's limit is the scene, not the method.** At 635–1895 FPS the GPU is idle and
 this is a CPU-overhead benchmark. Re-measure on a heavy scene before shipping a default.
 
 **What it does *not* buy:** it is a driver-path and compatibility win, not an engine-architecture
@@ -682,7 +683,7 @@ default; treat Option A as the only engine-side modernization worth funding. Do 
 DirectX 12 — measured, it buys no performance over the D3D9 path you already have.**
 
 *The hedge is deliberate.* DXVK won every clean round by a wide margin, but it won them in a
-scene running at 950–1860 FPS where the GPU is idle, so what was measured is CPU-side driver
+scene running at 635–1895 FPS where the GPU is idle, so what was measured is CPU-side driver
 overhead rather than gameplay frame rate. That is enough to justify shipping it as an option
 people can switch on; it is not enough to justify flipping the default for everyone.
 
@@ -714,7 +715,7 @@ alone.
 
 All four experiments required by issue #2 have now been run. What remains:
 
-1. **Re-measure Option E on a representative scene.** The benchmark ran at 950–1860 FPS on one
+1. **Re-measure Option E on a representative scene.** The benchmark ran at 635–1895 FPS on one
    vehicle, which measures CPU-side driver overhead rather than gameplay. The content submodule
    does not ship a heavy enough terrain to do better; this needs real content.
 2. **Decide whether to ship DXVK**, and if so whether as an opt-in download or bundled — note
