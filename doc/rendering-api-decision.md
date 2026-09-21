@@ -305,11 +305,16 @@ Median frame time, per round (ms) — read the rows, not just the summary:
 | 5 | **1.433** | 1.076 | **0.563** |
 | **spread** | **0.753** | **0.038** | **0.038** |
 
-| Configuration | median | 1%-low | worst frame | median FPS |
-|---|---|---|---|---|
-| native D3D9 | 0.840 ms | 1.917 ms | 4.810 ms | 1190 |
-| D3D9On12 (**DirectX 12**) | 1.056 ms | 2.107 ms | 6.028 ms | 947 |
-| DXVK (**Vulkan**) | **0.538 ms** | **1.381 ms** | **3.556 ms** | **1859** |
+| Configuration | median | 1%-low | *median* worst frame | **true worst frame** | median FPS |
+|---|---|---|---|---|---|
+| native D3D9 | 0.840 ms | 1.917 ms | 4.810 ms | 11.353 ms | 1190 |
+| D3D9On12 (**DirectX 12**) | 1.056 ms | 2.107 ms | 6.028 ms | **7.977 ms** | 947 |
+| DXVK (**Vulkan**) | **0.538 ms** | **1.381 ms** | 3.556 ms | 11.384 ms | **1859** |
+
+Note the last two columns disagree, and the distinction matters. The *median* worst frame
+flatters DXVK; the **true** worst frame across all five rounds is **D3D9On12's 7.977 ms** — the
+best of the three — with DXVK's 11.384 ms the single worst value in the dataset. DXVK wins
+decisively on typical frames and loses on the tail's tail.
 
 Paired against native *within each round*:
 
@@ -332,17 +337,27 @@ Paired against native *within each round*:
    per-round deltas happens to land, and quoting it alone would be misleading. **D3D9On12 never
    beats a healthy D3D9 path; it is simply immune to whatever degraded it.**
 
-   *Why native degraded in rounds 4–5 is unknown.* Both translation layers held a 0.038 ms
-   spread in those same rounds, so it is not a machine-wide slowdown — but with five rounds this
-   is an observation, not a demonstrated property of the D3D9 driver. It is worth re-testing.
+   *Rounds 4 and 5 were disturbed, and this document should not pretend otherwise.* An earlier
+   revision claimed the degradation was native-only and therefore "not machine-wide". That was
+   wrong, and the shipped CSV refutes it: **all three configurations lost average FPS in rounds
+   4–5** — native −20.2%, DXVK −19.5%, D3D9On12 −16.5% — and DXVK's tail degraded as badly as
+   native's (worst frame +157% vs native's +151%). Something disturbed the machine.
+
+   What survives that correction is narrower but still real: **native's *median* frame time was
+   uniquely sensitive** to the disturbance (+81%, 0.83 → 1.50 ms) while both wrappers' medians
+   moved under 3%. And **D3D9On12's tail was the only one that did not degrade at all** (worst
+   frame actually *improved* 25%).
 
 3. **DXVK — Vulkan, not DirectX 12 — is the only configuration that is clearly faster**, and it
    won every single round on both median and 1%-low. If the goal behind "upgrade to DX12" is
    "make it faster on a modern driver", **Vulkan via DXVK is the option that delivers it.**
 
-4. **Native D3D9 was by far the least consistent** — a 0.753 ms spread against 0.038 ms for
-   both wrappers. Whatever the cause, a user on the native path saw roughly double the frame
-   time in two of five rounds; neither wrapper did.
+4. **The clean comparison is rounds 1–3**, before the disturbance. There the picture is
+   unambiguous and tight: native 0.824 ms, D3D9On12 1.056 ms, DXVK 0.538 ms — DXVK **−35%**
+   against native, D3D9On12 **+28%**, and DXVK also holds the best true worst frame
+   (3.556 ms vs native's 4.810 ms and D3D9On12's 7.977 ms). Rounds 4–5 do not change that
+   ranking; they only add the observation that native's median is the most fragile of the three
+   under load, and that D3D9On12's tail is the most robust.
 
 ### The caveat that limits all of the above
 
