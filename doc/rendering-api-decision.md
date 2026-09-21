@@ -5,7 +5,7 @@
 **Audited against:** this checkout, `master` @ `8c821c052`, OGRE **1.11.6.1** (`conanfile.py:25`)
 
 > Every load-bearing count in this document is re-derivable. Run
-> `tools/verify-rendering-api-audit.sh`; it re-computes the **33** tree-dependent figures it
+> `tools/verify-rendering-api-audit.sh`; it re-computes the **39** tree-dependent figures it
 > lists and exits non-zero if any has drifted. It is a manual check — no CI job runs it. The
 > tree moves: do not trust a number here that the script no longer confirms.
 
@@ -41,10 +41,14 @@ on faith — including at the exact version this fork pins:
 | [`OGRECave/ogre-next/RenderSystems`](https://github.com/OGRECave/ogre-next/tree/master/RenderSystems) (`master`) | `Direct3D11, GL3Plus, GLES2, Metal, NULL, Vulkan` |
 | Same, at branch `v3-0` (latest release line) | `Direct3D11, GL3Plus, GLES2, Metal, NULL, Vulkan` |
 | All branches of `OGRECave/ogre` | only `master` and `gh-pages` — no D3D12 work in progress |
-| Commit search for `Direct3D12` across `OGRECave/ogre` history | no matches |
+| All 15 branches of `OGRECave/ogre-next` (`v2-0`…`v3-0`, `ParticleFX2`, …) | none D3D12-related |
+| Historical tags `v1.12.13`, `v13.0.0`–`v13.6.0`, `v14.0.0` | no `Direct3D12` directory at any of them |
+| Commit / code search for `Direct3D12` / `D3D12` | 0 hits in `ogre`; in `ogre-next`, only docs and comments |
+| Maintainer statement | [ogre-next#417](https://github.com/OGRECave/ogre-next/issues/417) (2023-09-27), darksylinc: *"There are no current plans for D3D12 support."* |
 
-**No Direct3D 12 backend exists on any branch, tag or release line of either project, and none
-is in progress.** If this ever becomes false, the recommendation below must be revisited first.
+**No Direct3D 12 backend exists on any branch, tag or release line of either project, none is
+in progress, and the OGRE-Next lead has said there are no plans for one.** If this ever becomes
+false, the recommendation below must be revisited first.
 
 ---
 
@@ -57,7 +61,7 @@ The starting-point audit in issue #2 was re-verified line by line. Confirmed:
 | Renderer is OGRE 1.11.6.1, the 1.x line (`conanfile.py:25`) | ✅ confirmed |
 | `source/main/plugins.cfg.in` offers D3D9, D3D11, GL, GL3Plus — no D3D12 entry | ✅ confirmed |
 | `source/main/CMakeLists.txt:496-497` unconditionally comments out D3D11 and GL3Plus | ✅ confirmed |
-| `source/main/CMakeLists.txt:493` comments out GL on Windows → a Windows build loads D3D9 only | ✅ confirmed |
+| `source/main/CMakeLists.txt:493-494` comments out GL on Windows → a Windows build loads D3D9 only | ✅ confirmed |
 | Runtime render-system selection already works (`AppContext.cpp:291-298`, `GUI_GameSettings.cpp:143-157`) | ✅ confirmed |
 | `Plugin_CgProgramManager` loaded unconditionally | ✅ confirmed |
 | `REQUIRED_DEPS_VERSION 30` (root `CMakeLists.txt:19`) | ✅ confirmed |
@@ -101,8 +105,17 @@ Measured across `resources/`:
 | …of those 5, how many are RoR's own content rather than OGRE's bundled files | **0** |
 
 Concentration: `caelum/` 10 files, `materials/` 4, `managed_materials/` 2, `OgreCore/` 1.
-This is **not** peripheral — `resources/managed_materials/nicemetal_mm.program` is RoR's core
-vehicle material, and it is Cg-only.
+
+**This is not peripheral.** `resources/managed_materials/` is RoR's managed-material system,
+imported by 14 further `.material` files. Its `BaseTechnique` inherits
+`Shadows/managed/base_receiver`, which resolves to `PSSM/shadow_receiver_vs` /
+`PSSM/shadow_receiver_ps` (`shadows/pssm/on/shadows.material:8-9`) — Cg programs declaring
+`vs_1_1 arbvp1` and `ps_2_x arbfp1` (`shadows/pssm/on/depthshadows.program:33,53`). Ordinary
+vehicle rendering with shadows on therefore depends on Cg.
+
+(`nicemetal_mm.program` is Cg-only too, but it is the *opt-in alternate* material — gated on
+`gfx_alt_actor_materials`, which defaults to `"false"` at `CVar.cpp:209` — so it is not the
+core path and is not the argument here.)
 
 ### Does the D3D11 render system run them? Mostly no — and this inverts the issue's expectation
 
@@ -128,22 +141,43 @@ count  profile list                        count  profile list
 ```
 
 Every entry is either a **D3D9-era Shader Model 1–3 profile** or an **OpenGL ARB/NV profile**
-(`arbvp1`, `arbfp1`, `vp30`, `fp40`). The only `vs_4_0` mentions are the five in
+(`arbvp1`, `arbfp1`, `vp30`, `vp40`, `fp40`). The only `vs_4_0` mentions are the five in
 `resources/OgreCore/StdQuad_vp.program` — OGRE's own bundled compositor quads. **Not one
 fragment program anywhere declares `ps_4_0`, and not one RoR-authored program declares any
 D3D11-capable profile.**
 
-Two mechanisms then bite:
+**What actually happens, and it is decisive.** The Cg plugin has three outcomes, not two
+(`OgreCgProgram.cpp` @ `v1.11.6`):
 
-1. **Profiles below SM4 do not produce an HLSL delegate.** `CgProgram::createLowLevelImpl()`
-   only delegates for the SM4/SM5 profiles; everything lower becomes a *low-level assembly*
-   program. The D3D11 render system has no assembly-shader path, so those programs cannot bind.
-2. **`vs_1_1` and `ps_2_x` are never registered by D3D11 at all.** `OgreD3D11RenderSystem.cpp`
-   registers `vs_2_0`/`vs_3_0`/`ps_2_0`/`ps_2_a`/`ps_2_b`/`ps_3_0` only under
-   `#define SUPPORT_SM2_0_HLSL_SHADERS 1` (`OgreD3D11RenderSystem.h:49` — confirmed identical at
-   tag `v1.11.6`, so this is on by default in the pinned version), and
-   `vs_1_1`/`ps_2_x` never. That alone rules out **21 of the 72** declarations (12 using `vs_1_1`,
-   9 using `ps_2_x`) no matter what else is done.
+1. **`hlslv`/`hlslf`/`glslv`/`glslf`/`glslg`** — the only profiles that set `useDelegate` in
+   `selectProfile()` (line 43). These produce a genuine delegate program. **RoR declares none.**
+2. **`vs_4_0`/`ps_4_0`/`vs_5_0`/`ps_5_0`** (plus `ds_5_0`/`hs_5_0`) — `createLowLevelImpl()`
+   (line 442) builds an **HLSL high-level program** into `mAssemblerProgram`. Not a delegate,
+   but it works on D3D11. **RoR declares 5, all in OGRE's own bundled file.**
+3. **Everything else** — `GpuProgramManager::createProgramFromString(..., mSelectedProfile)`,
+   i.e. a **D3D9-era low-level assembly program**.
+
+Outcome 3 is where 67 of RoR's 72 declarations land, and D3D11 does not merely lack a path for
+them — it refuses them explicitly. `OgreD3D11GpuProgramManager.cpp` returns a
+`D3D11UnsupportedGpuProgram` from both `createImpl` overloads, and loading one throws:
+
+```cpp
+String message = "D3D11 dosn't support assembly shaders. Shader name:" + mName + "
+";
+OGRE_EXCEPT(Exception::ERR_RENDERINGAPI_ERROR, message, ...);
+```
+
+**That exception is the predicted result of Experiment 2**, repeated once per Cg program.
+
+A caveat worth stating, because it cuts *against* an earlier draft of this document: the
+legacy syntaxes largely **are** registered. Under `#define SUPPORT_SM2_0_HLSL_SHADERS 1`
+(`OgreD3D11RenderSystem.h:49`, identical at `v1.11.6` — a hard `#define`, not a build option),
+D3D11 registers `vs_2_0`, `vs_2_a`, `vs_2_x`, `vs_3_0`, `ps_2_0`, `ps_2_a`, `ps_2_b`,
+**`ps_2_x`**, `ps_3_0` and `ps_3_x`. That define exists precisely so SM2-era shaders reach
+D3D11 "directly or via Cg", per its own comment. **`vs_1_1` is the only profile RoR uses that
+is never registered** — 12 declarations, which fail to resolve at all. The other 55 resolve
+happily, compile to assembly, and then throw at load. Both roads end in the same place; only
+the first one is about profile registration.
 
 ### And there is a second, larger problem: fixed-function materials
 
@@ -159,8 +193,12 @@ D3D9 sets that capability (`OgreD3D9RenderSystem.cpp:922`); D3D11 and GL3Plus ne
 Materials without shaders are therefore rendered only via the RTShaderSystem, which
 auto-generates them. In this tree:
 
-- **32 of 48** `.material` files contain no `vertex_program_ref`/`fragment_program_ref` at all —
-  they are fixed-function.
+- **32 of 48** `.material` files contain no `vertex_program_ref`/`fragment_program_ref`
+  *in the file itself*. Read that as an upper bound, not a count of fixed-function materials:
+  OGRE inherits techniques across files, and ~14 of the 32 `import` from
+  `managed_mats.material` and pick up the PSSM shader technique above when shadows are on. It
+  is also a **file** count, not a material count — `eurosigns.material` alone defines 76
+  materials — so it does not measure how much content is affected.
 - **RTSS is unwired, not merely disabled.** `gfx_enable_rtshaders` is declared
   (`Application.cpp:269`), externed (`Application.h:815`) and created with default `"false"`
   (`CVar.cpp:208`) — and **read by nothing**. Those are its only three references in `source/`.
@@ -197,6 +235,19 @@ Mechanical count of OGRE API call sites that OGRE-Next changes (`SceneManager`, 
 
 For scale: `source/main/gfx/` is 39,950 lines; `source/main/` is 200,801.
 
+**Read these as matching source lines, not as "OGRE calls in RoR's game code."** Two caveats,
+both verified:
+
+- **About 49% is vendored third-party code**: `source/main/gfx/hydrax/` accounts for 903 of the
+  2,655 and vendored `Ogre*.cpp`/`Ogre*.h` files for another 408.
+- **Hydrax ships its own `MaterialManager` and `TextureManager` classes**
+  (`gfx/hydrax/MaterialManager.h:44`, `TextureManager.h:45`), so not every hit is an OGRE
+  symbol at all — only 77 of 439 `MaterialManager` lines are spelled `Ogre::MaterialManager`.
+
+This does not shrink Option C: vendored Hydrax, Caelum, PagedGeometry and SkyX all have to be
+ported to OGRE-Next too, and they are the *least* pleasant part of it. But the honest
+characterisation is "lines that a port has to look at", not "OGRE API calls in RoR".
+
 ---
 
 ## Experiments 2 and 3 — NOT RUN
@@ -231,7 +282,7 @@ installation — the one Option E fact that could be checked here.
 |  |  |
 |---|---|
 | **Possible?** | **Yes.** The plugin exists, is built, and is switched off by one CMake line. |
-| **Effort** | **4–8 engineer-weeks**, wide because Experiment 2 has not been run. |
+| **Effort** | **8–20 engineer-weeks.** See the note below on why the floor is not lower. |
 | **Buys** | A supported, modern-driver API. Removes the D3D9 deprecation risk. Keeps OGRE, keeps the fork close to upstream. The necessary first step of *any* real modernization. |
 | **Breaks** | 67 of 72 Cg declarations cannot bind (no D3D11-capable profile). 32 of 48 materials are fixed-function and need RTSS, which is not merely off but **unwired** — `gfx_enable_rtshaders` is read by nothing and `ShaderGenerator` is never initialised. |
 | **Maintenance** | Low. Upstream OGRE maintains the backend; the work is one-time. |
@@ -242,6 +293,14 @@ register the material-scheme listener across the game, not just terrain objects;
 67 Cg declarations a D3D11-capable profile (`vs_4_0`/`ps_4_0`, or `hlslv`/`hlslf`), then fix the
 SM2/SM3-era Cg that fails to compile at SM4 — texture sampling and semantics are the usual
 casualties; (3) ship `RenderSystem_Direct3D11` and uncomment `source/main/CMakeLists.txt:496`.
+
+**On the estimate:** an earlier draft said 4–8 weeks. That floor is not defensible against
+this document's own evidence — item (1) is building RTSS wiring from nothing, item (2) is
+porting 67 Cg declarations across 17 files of which 10 are third-party Caelum, Hydrax layers
+its own material manager on top, and **none of it can be smoke-tested here** because
+Experiments 2 and 3 could not run. Four weeks assumes a working build and content set that do
+not currently exist. The `upstream/ogre-14` branch (D3D11 already on for Windows) is the
+cheapest way to collapse this range — run the smoke test there first and re-estimate.
 
 **Risks:** the SM4 recompile of decade-old Cg is the unknown, and it is the whole variance in
 the estimate. Caelum (10 of the 17 Cg files) is third-party. Keep D3D9 selectable throughout —
@@ -262,8 +321,10 @@ it is the fallback if a material family cannot be ported.
 **Verified:** `RenderSystems/Vulkan` exists in OGRE's 1.x-line `master`
 ([OGRECave/ogre/RenderSystems](https://github.com/OGRECave/ogre/tree/master/RenderSystems) —
 the full backend list is `Direct3D11, Direct3D9, GL, GL3Plus, GLES2, GLSupport, Metal, Tiny,
-Vulkan`). It first appears in release notes at **v13.1.0 (2021-10-09)** and is actively
-maintained — **v14.6.0 (2026-09-09)** adds HDR display output on Vulkan among others.
+Vulkan`). The `RenderSystems/Vulkan` directory is absent at `v13.0.0`, `v13.1.0` and
+`v13.1.1` and first present at **`v13.2.0` (2021-11-28)**, whose notes open *"Highlight: Vulkan
+RenderSystem added."* It is actively maintained — **v14.6.0 (2026-09-09)** adds HDR display
+output on Vulkan among others.
 
 The cost is the version jump: **1.11.6.1 → 14.x** crosses 1.12, 1.13, 13.x and 14.x with
 breaking changes at each. Per issue #2's invariant, this is a **`ror-dependencies` package bump
@@ -275,11 +336,14 @@ would need updating too.
 
 This checkout already fetches three upstream branches that attempt exactly this work:
 
-| Branch | OGRE pin | Last commit | Cg declarations | `Plugin_CgProgramManager` | D3D11 |
+| Branch | OGRE pin | Last commit | Cg declarations | `Plugin_CgProgramManager` | D3D11 on Windows |
 |---|---|---|---|---|---|
-| `upstream/ogre-1.12` | — | 2021-05-31 | 75 | loaded | still commented out |
-| `upstream/ogre-13` | `ogre3d/14.1.0` | 2023-09-23 | 68 | loaded | still commented out |
-| `upstream/ogre-14` | `ogre3d/14.1.2` | 2024-02-12 | 68 | loaded | still commented out |
+| `upstream/ogre-1.12` | `OGRE/1.12.12` (`conanfile.txt`) | 2021-05-31 | 75 | loaded | off (commented unconditionally, `:497`) |
+| `upstream/ogre-13` | `ogre3d/14.1.0` | 2023-09-23 | 68 | loaded | **ON** (comment-out is inside `if (NOT WIN32)`, `:461`) |
+| `upstream/ogre-14` | `ogre3d/14.1.2` | 2024-02-12 | 68 | loaded | **ON** (same, `:469`) |
+
+On `ogre-13` and `ogre-14` upstream also re-enabled GL on Windows and commented out GL3Plus
+instead, so a Windows build on those branches loads D3D9 + D3D11 + GL.
 
 This cuts both ways, and both directions matter.
 
@@ -290,10 +354,15 @@ system. Rebasing onto that work is far cheaper than doing the 1.11 → 14.x port
 Both branches have been stalled since 2024, so expect to finish and re-validate them.
 
 **And it is the single strongest piece of evidence in this document:** upstream RoR bumped
-OGRE all the way to 14.1.2 — an engine with D3D11 *and* Vulkan already built — and **still ships
-68 Cg programs, still loads the Cg plugin, and still leaves D3D11 commented out.** The version
-bump was never the hard part. **Cg is.** That is why issue #4 is not a side quest but the whole
-of the engine-side work, and why no option in this document can route around it.
+OGRE to 14.1.2, **switched the D3D11 render system on for Windows**, and *still* ships 68 Cg
+programs and still loads `Plugin_CgProgramManager`. They had the backend enabled and available
+— and did not de-Cg. The version bump and the render-system flag were never the hard part.
+**Cg is.** That is why issue #4 is not a side quest but the whole of the engine-side work, and
+why no option in this document can route around it.
+
+**It also makes Experiment 2 cheap.** `upstream/ogre-14` is a branch with D3D11 already enabled
+on Windows. Whoever next has a working toolchain should build *that* rather than flipping
+`source/main/CMakeLists.txt:496` here — it is the smoke test, most of the way set up already.
 
 ### Option C — migrate to OGRE-Next (2.3 / 3.0)
 
@@ -331,8 +400,11 @@ A from-scratch `Ogre::RenderSystem` backend means device and swapchain managemen
 recording and submission, descriptor heap allocation, PSO creation and caching, resource
 residency and state transitions, fence-based frame synchronisation, and the complete
 `Ogre::RenderSystem` virtual interface — then correctness and performance parity with a D3D11
-backend that already exists and is already maintained by someone else. Both OGRE and OGRE-Next
-have declined to do this. Writing and owning a graphics backend that no upstream maintains is a
+backend that already exists and is already maintained by someone else. OGRE-Next's lead
+maintainer has stated the position directly — *"There are no current plans for D3D12 support"*
+([ogre-next#417](https://github.com/OGRECave/ogre-next/issues/417), 2023-09-27; asked again in
+[#561](https://github.com/OGRECave/ogre-next/issues/561), still unanswered). OGRE's 1.x
+mainline has never proposed one at all. Writing and owning a graphics backend that no upstream maintains is a
 permanent tax on a fork whose renderer is otherwise free.
 
 ### Option E — translation layer, zero engine changes

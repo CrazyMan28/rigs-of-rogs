@@ -118,12 +118,16 @@ check "distinct 'profiles' lists (rows in the document's table)" "13" \
 check "total 'profiles' declarations (the table must sum to this)" "72" \
     "$(profiles_normalised | wc -l | tr -d ' ')"
 
-# D3D11 never registers vs_1_1 or ps_2_x at any setting, so declarations resting
-# on them are unreachable regardless of SUPPORT_SM2_0_HLSL_SHADERS.
-check "declarations using vs_1_1 with no SM4/SM5 alternative" "12" \
+# vs_1_1 is the only profile RoR uses that D3D11 never registers, so those
+# declarations fail to resolve to a supported syntax at all.
+# NOTE: ps_2_x *is* registered (OgreD3D11RenderSystem.cpp:1145, under
+# SUPPORT_SM2_0_HLSL_SHADERS). Those resolve, then die on the assembly path
+# instead. Counted here because the document cites the number - not because
+# they are unregistered. An earlier draft got this backwards.
+check "declarations using vs_1_1 with no SM4/SM5 alternative (unresolvable)" "12" \
     "$(profiles_normalised | grep -E '\bvs_1_1\b' | grep -vcE '\b(vs_4_0|vs_5_0)\b')"
 
-check "declarations using ps_2_x (never registered by D3D11)" "9" \
+check "declarations using ps_2_x (registered, but fail on the assembly path)" "9" \
     "$(profiles_normalised | grep -cE '\bps_2_x\b')"
 
 check ".material files total" "48" \
@@ -159,6 +163,19 @@ check "ShaderGenerator::initialize() calls in source/" "0" \
 check "RTShader::ShaderGenerator call sites in source/" "2" \
     "$(grep -rn 'RTShader::ShaderGenerator::getSingleton' source \
         --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
+
+# Widened from just the getSingleton() calls so the document's "RTSS is unwired"
+# paragraph is actually guarded: 1 cvar creation + 1 #include + 2 call sites.
+# Any growth here means someone has started wiring RTSS up.
+check "RTShader mentions in source/ (cvar + include + 2 call sites)" "4" \
+    "$(grep -rc 'RTShader' source --include='*.cpp' --include='*.h' \
+        | awk -F: '{s+=$NF} END{print s+0}')"
+
+# The NiceMetal materials are gated on this and it defaults off, which is why
+# they are the alternate vehicle material and not the core path.
+check "gfx_alt_actor_materials default (gates the NiceMetal materials)" "false" \
+    "$(grep -oE '"gfx_alt_actor_materials".*"(true|false)"' source/main/system/CVar.cpp \
+        | grep -oE '"(true|false)"$' | tr -d '"')"
 
 check "RTSS FFPLib HLSL variants shipped" "9" \
     "$(find resources/rtshader -name '*.hlsl' | wc -l | tr -d ' ')"
@@ -202,6 +219,22 @@ check "  ...spread over how many source/main files" "173" \
 
 check "Material/Technique/Pass sites in source/main (Hlms surface)" "1289" \
     "$(grep -rE "$MAT_PAT" source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
+
+# How much of that 2,655 is vendored third-party code rather than RoR's own.
+# The document leans on these to avoid overstating Option C's game-code scope.
+check "  ...of which in vendored gfx/hydrax/" "903" \
+    "$(grep -rE "$NEXT_PAT" source/main/gfx/hydrax --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
+
+check "  ...of which in vendored Ogre* files" "408" \
+    "$(grep -rE "$NEXT_PAT" source/main --include='Ogre*.cpp' --include='Ogre*.h' | wc -l | tr -d ' ')"
+
+# Hydrax defines its own MaterialManager/TextureManager, so a bare name match
+# overcounts OGRE symbols. Guards the document's false-positive caveat.
+check "MaterialManager lines in source/main (bare name)" "439" \
+    "$(grep -rE 'MaterialManager' source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
+
+check "  ...actually spelled Ogre::MaterialManager" "77" \
+    "$(grep -rE 'Ogre::MaterialManager' source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
 echo
 if [ "$fail" -eq 0 ]; then
