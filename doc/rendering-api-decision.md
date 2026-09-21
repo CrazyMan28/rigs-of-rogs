@@ -55,9 +55,12 @@ There are **three**:
 - `source/main/terrain/TerrainGeometryManager.cpp:472` — **missed by the original audit.**
   Exact-matches `"OpenGL Rendering Subsystem"` to force normal/specular mapping on
   ("Fix for OpenGL, otherwise terrains are black"). Harmless under D3D11, which takes the
-  `else` branch like D3D9 — but it is an *exact string compare*, so it silently fails to
-  match `"OpenGL 3+ Rendering Subsystem"`. **Any move from GL to GL3Plus or Vulkan
-  (Options B and C) reintroduces black terrain on Linux until this line is fixed.**
+  `else` branch like D3D9 — but it is an *exact* string compare, and the names OGRE actually
+  reports are `"OpenGL Rendering Subsystem"` (GL), `"OpenGL 3+ Rendering Subsystem"` (GL3Plus)
+  and `"Vulkan Rendering Subsystem"` (Vulkan), verified in `OgreGLRenderSystem.cpp`,
+  `OgreGL3PlusRenderSystem.cpp` and `OgreVulkanRenderSystem.cpp`. Neither of the latter two
+  matches. **Any move from GL to GL3Plus or Vulkan (Options B and C) reintroduces black
+  terrain on Linux until this line is fixed.**
 
 The engine needs no new plumbing to *run* on another API. The obstacle is entirely in the
 shader and material layer.
