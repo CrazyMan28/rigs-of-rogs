@@ -147,8 +147,17 @@ Two mechanisms then bite:
 
 ### And there is a second, larger problem: fixed-function materials
 
-OGRE's D3D11 render system **has no fixed-function pipeline**. Materials without shaders are
-rendered via the RTShaderSystem, which auto-generates them. In this tree:
+OGRE's D3D11 render system **has no fixed-function pipeline**. This is not an inference — at
+tag `v1.11.6`, `OgreD3D11RenderSystem.cpp:927-928` reads:
+
+```cpp
+// Does NOT support fixed-function!
+//rsc->setCapability(RSC_FIXED_FUNCTION);
+```
+
+D3D9 sets that capability (`OgreD3D9RenderSystem.cpp:922`); D3D11 and GL3Plus never do.
+Materials without shaders are therefore rendered only via the RTShaderSystem, which
+auto-generates them. In this tree:
 
 - **32 of 48** `.material` files contain no `vertex_program_ref`/`fragment_program_ref` at all —
   they are fixed-function.
