@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Re-derives every tree-dependent number cited in doc/rendering-api-decision.md.
+# Re-derives the tree-dependent numbers cited in doc/rendering-api-decision.md.
 #
 # The decision document rests on counts taken from this checkout (Cg program
 # declarations, fixed-function materials, OGRE-Next call sites, ...). Those
@@ -11,8 +11,9 @@
 # Usage:  tools/verify-rendering-api-audit.sh
 # Exit:   0 = every figure still matches, 1 = at least one drifted.
 #
-# When a figure legitimately changes, update BOTH this script and the
-# corresponding number in doc/rendering-api-decision.md in the same commit.
+# This is a MANUAL check - no CI job invokes it. Run it before citing the
+# document, and when a figure legitimately changes, update BOTH this script and
+# the corresponding number in doc/rendering-api-decision.md in the same commit.
 
 set -u
 
@@ -25,21 +26,39 @@ pass=0
 check() {
     local what="$1" expected="$2" actual="$3"
     if [ "$expected" = "$actual" ]; then
-        printf '  ok   %-58s %s\n' "$what" "$actual"
+        printf '  ok    %-58s %s\n' "$what" "$actual"
         pass=$((pass + 1))
     else
-        printf '  DRIFT %-57s expected %s, got %s\n' "$what" "$expected" "$actual"
+        printf '  DRIFT %-58s expected %s, got %s\n' "$what" "$expected" "$actual"
         fail=$((fail + 1))
     fi
 }
 
-# Matches an OGRE program declaration of a given language, e.g.
+# An OGRE program declaration in a given shader language, e.g.
 #   fragment_program NiceMetal_PS_mm cg
+# %s is the language. Kept in one place so the count and the file list can
+# never drift apart.
+PROGRAM_DECL='^[[:space:]]*(vertex|fragment|geometry)_program[[:space:]]+[^[:space:]]+[[:space:]]+%s[[:space:]]*$'
+
 decls_in_language() {
-    grep -rhEi \
-        "^[[:space:]]*(vertex|fragment|geometry)_program[[:space:]]+[^[:space:]]+[[:space:]]+$1[[:space:]]*\$" \
-        --include=*.material --include=*.program resources | wc -l | tr -d ' '
+    grep -rhEi "$(printf "$PROGRAM_DECL" "$1")" \
+        --include='*.material' --include='*.program' resources
 }
+
+files_in_language() {
+    grep -rlEi "$(printf "$PROGRAM_DECL" "$1")" \
+        --include='*.material' --include='*.program' resources
+}
+
+# Profile lines, trailing whitespace stripped. Indentation in resources/ mixes
+# tabs and spaces; normalising matters, because not doing so is what produced a
+# wrong frequency table in the first draft of the document.
+profiles_normalised() {
+    grep -rhEi '^[[:space:]]*profiles[[:space:]]' \
+        --include='*.material' --include='*.program' resources | sed 's/[[:space:]]*$//'
+}
+
+D3D11_PROFILE='\b(vs_4_0|ps_4_0|vs_5_0|ps_5_0|hlslv|hlslf)\b'
 
 echo "== Renderer / build configuration =="
 
@@ -58,72 +77,88 @@ check "REQUIRED_DEPS_VERSION" "30" \
 echo
 echo "== Experiment 1: Cg inventory =="
 
-vert_cg=$(decls_in_language cg)
-check "Cg program declarations (vertex+fragment)" "72" "$vert_cg"
+check "Cg program declarations (vertex+fragment)" "72" \
+    "$(decls_in_language cg | wc -l | tr -d ' ')"
+
+check "  ...fragment_program cg" "45" \
+    "$(decls_in_language cg | grep -ciE '^[[:space:]]*fragment_program')"
+
+check "  ...vertex_program cg" "27" \
+    "$(decls_in_language cg | grep -ciE '^[[:space:]]*vertex_program')"
 
 check "files declaring at least one Cg program" "17" \
-    "$(grep -rlEi '^[[:space:]]*(vertex|fragment|geometry)_program[[:space:]]+[^[:space:]]+[[:space:]]+cg[[:space:]]*$' \
-        --include=*.material --include=*.program resources | wc -l | tr -d ' ')"
+    "$(files_in_language cg | wc -l | tr -d ' ')"
+
+check "Cg file concentration by directory" "caelum=10 materials=4 managed_materials=2 OgreCore=1" \
+    "$(files_in_language cg | awk -F/ '{print $2}' | sort | uniq -c | sort -rn \
+        | awk '{printf "%s%s=%s", (NR>1 ? " " : ""), $2, $1}')"
 
 # Only vs_4_0/ps_4_0/vs_5_0/ps_5_0 (or the hlslv/hlslf meta-profiles) let OGRE's
 # Cg plugin build a D3D11-compatible HLSL delegate. Anything lower resolves to a
 # D3D9-era assembly program, which the D3D11 render system cannot consume.
 check "Cg profile lines naming a D3D11-capable profile" "5" \
-    "$(grep -rhniE '\b(vs_4_0|ps_4_0|vs_5_0|ps_5_0|hlslv|hlslf)\b' \
-        --include=*.material --include=*.program resources | wc -l | tr -d ' ')"
+    "$(grep -rhniE "$D3D11_PROFILE" \
+        --include='*.material' --include='*.program' resources | wc -l | tr -d ' ')"
+
+# Assert the denominator too. "0 files outside OgreCore/" is also what a broken
+# regex or a missing resources/ tree produces, so on its own it proves nothing.
+check "  ...in how many files (denominator; guards the next check)" "1" \
+    "$(grep -rlniE "$D3D11_PROFILE" \
+        --include='*.material' --include='*.program' resources | wc -l | tr -d ' ')"
 
 check "  ...of which outside OgreCore/ (i.e. RoR's own content)" "0" \
-    "$(grep -rlniE '\b(vs_4_0|ps_4_0|vs_5_0|ps_5_0|hlslv|hlslf)\b' \
-        --include=*.material --include=*.program resources \
-        | grep -v 'resources/OgreCore/' | wc -l | tr -d ' ')"
-
-# D3D11 never registers vs_1_1 or ps_2_x at any setting, so declarations resting
-# on them are unreachable regardless of SUPPORT_SM2_0_HLSL_SHADERS.
-profiles_normalised() {
-    grep -rhEi '^[[:space:]]*profiles[[:space:]]' \
-        --include=*.material --include=*.program resources | sed 's/[[:space:]]*$//'
-}
+    "$(grep -rlniE "$D3D11_PROFILE" \
+        --include='*.material' --include='*.program' resources \
+        | grep -vc 'resources/OgreCore/' || true)"
 
 # The frequency table printed in the document is generated from exactly this.
 check "distinct 'profiles' lists (rows in the document's table)" "13" \
     "$(profiles_normalised | sed 's/^[[:space:]]*//' | sort -u | wc -l | tr -d ' ')"
 
-check "total 'profiles' declarations (table must sum to this)" "72" \
+check "total 'profiles' declarations (the table must sum to this)" "72" \
     "$(profiles_normalised | wc -l | tr -d ' ')"
 
+# D3D11 never registers vs_1_1 or ps_2_x at any setting, so declarations resting
+# on them are unreachable regardless of SUPPORT_SM2_0_HLSL_SHADERS.
 check "declarations using vs_1_1 with no SM4/SM5 alternative" "12" \
     "$(profiles_normalised | grep -E '\bvs_1_1\b' | grep -vcE '\b(vs_4_0|vs_5_0)\b')"
 
 check "declarations using ps_2_x (never registered by D3D11)" "9" \
     "$(profiles_normalised | grep -cE '\bps_2_x\b')"
 
-total_mat=$(find resources -name '*.material' | wc -l | tr -d ' ')
+check ".material files total" "48" \
+    "$(find resources -name '*.material' | wc -l | tr -d ' ')"
+
+# NUL-delimited: resources/ has no paths containing spaces today, but a
+# word-splitting loop would miscount silently the day one appears.
 ff_mat=0
-for f in $(find resources -name '*.material'); do
-    grep -qEi '(vertex_program_ref|fragment_program_ref|shadow_caster_vertex_program_ref)' "$f" || ff_mat=$((ff_mat + 1))
-done
-check ".material files total" "48" "$total_mat"
+while IFS= read -r -d '' f; do
+    grep -qEi '(vertex_program_ref|fragment_program_ref|shadow_caster_vertex_program_ref)' "$f" \
+        || ff_mat=$((ff_mat + 1))
+done < <(find resources -name '*.material' -print0)
 check ".material files with no shader program_ref (fixed-function)" "32" "$ff_mat"
 
 echo
 echo "== RTShaderSystem (D3D11 has no fixed-function pipeline) =="
 
 check "gfx_enable_rtshaders default" "false" \
-    "$(grep -oE '"gfx_enable_rtshaders".*"(true|false)"' source/main/system/CVar.cpp | grep -oE '"(true|false)"$' | tr -d '"')"
+    "$(grep -oE '"gfx_enable_rtshaders".*"(true|false)"' source/main/system/CVar.cpp \
+        | grep -oE '"(true|false)"$' | tr -d '"')"
 
 # Declaration + extern + creation, and nothing else: the CVar is never read, so
 # RTSS is unwired rather than switched off. If this becomes 4+, something now
 # reads it and the "unwired" diagnosis in the document needs revisiting.
 check "gfx_enable_rtshaders references in source/ (decl+extern+create only)" "3" \
-    "$(grep -rc 'gfx_enable_rtshaders' source --include=*.cpp --include=*.h \
+    "$(grep -rc 'gfx_enable_rtshaders' source --include='*.cpp' --include='*.h' \
         | awk -F: '{s+=$NF} END{print s+0}')"
 
 check "ShaderGenerator::initialize() calls in source/" "0" \
-    "$(grep -rc 'ShaderGenerator::initialize' source --include=*.cpp --include=*.h \
+    "$(grep -rc 'ShaderGenerator::initialize' source --include='*.cpp' --include='*.h' \
         | awk -F: '{s+=$NF} END{print s+0}')"
 
 check "RTShader::ShaderGenerator call sites in source/" "2" \
-    "$(grep -rn 'RTShader::ShaderGenerator::getSingleton' source --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
+    "$(grep -rn 'RTShader::ShaderGenerator::getSingleton' source \
+        --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
 check "RTSS FFPLib HLSL variants shipped" "9" \
     "$(find resources/rtshader -name '*.hlsl' | wc -l | tr -d ' ')"
@@ -132,26 +167,41 @@ echo
 echo "== Render-system name branches =="
 
 check "sites branching on getRenderSystem()->getName()" "3" \
-    "$(grep -rn 'getRenderSystem()->getName()[[:space:]]*\(==\|\.find\)' source/main --include=*.cpp \
-        | wc -l | tr -d ' ')"
+    "$(grep -rnE 'getRenderSystem\(\)->getName\(\)[[:space:]]*(==|\.find)' source/main \
+        --include='*.cpp' | wc -l | tr -d ' ')"
 
 echo
 echo "== Experiment 4: OGRE-Next affected API surface =="
 
 NEXT_PAT='(SceneManager|Ogre::Entity|createEntity|SceneNode|MaterialPtr|MaterialManager|Technique|Ogre::Pass|getPass|setMaterialName|Compositor|ParticleSystem|BillboardSet|ManualObject|HardwareBuffer|RenderTarget|RenderWindow|Viewport|Ogre::Camera|TextureUnitState|TextureManager)'
+MAT_PAT='(MaterialPtr|MaterialManager|Technique|Ogre::Pass|getPass|setMaterialName|TextureUnitState)'
+
+check "source/main/gfx .cpp/.h files" "130" \
+    "$(find source/main/gfx -type f \( -name '*.cpp' -o -name '*.h' \) | wc -l | tr -d ' ')"
+
+check "source/main .cpp/.h files" "450" \
+    "$(find source/main -type f \( -name '*.cpp' -o -name '*.h' \) | wc -l | tr -d ' ')"
+
+check "source/main/gfx lines (quoted for scale)" "39950" \
+    "$(find source/main/gfx -type f \( -name '*.cpp' -o -name '*.h' \) -exec cat {} + | wc -l | tr -d ' ')"
+
+check "source/main lines (quoted for scale)" "200801" \
+    "$(find source/main -type f \( -name '*.cpp' -o -name '*.h' \) -exec cat {} + | wc -l | tr -d ' ')"
 
 check "affected call sites in source/main/gfx" "1532" \
-    "$(grep -rE "$NEXT_PAT" source/main/gfx --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
+    "$(grep -rE "$NEXT_PAT" source/main/gfx --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
+
+check "  ...spread over how many gfx files" "87" \
+    "$(grep -rlE "$NEXT_PAT" source/main/gfx --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
 check "affected call sites in source/main" "2655" \
-    "$(grep -rE "$NEXT_PAT" source/main --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
+    "$(grep -rE "$NEXT_PAT" source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
-check "files in source/main touching that surface" "173" \
-    "$(grep -rlE "$NEXT_PAT" source/main --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
+check "  ...spread over how many source/main files" "173" \
+    "$(grep -rlE "$NEXT_PAT" source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
-MAT_PAT='(MaterialPtr|MaterialManager|Technique|Ogre::Pass|getPass|setMaterialName|TextureUnitState)'
 check "Material/Technique/Pass sites in source/main (Hlms surface)" "1289" \
-    "$(grep -rE "$MAT_PAT" source/main --include=*.cpp --include=*.h | wc -l | tr -d ' ')"
+    "$(grep -rE "$MAT_PAT" source/main --include='*.cpp' --include='*.h' | wc -l | tr -d ' ')"
 
 echo
 if [ "$fail" -eq 0 ]; then

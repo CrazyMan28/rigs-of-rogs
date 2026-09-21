@@ -4,9 +4,10 @@
 **Issue:** [#2](https://github.com/CrazyMan28/rigs-of-rogs/issues/2) · **Epic:** [#1](https://github.com/CrazyMan28/rigs-of-rogs/issues/1)
 **Audited against:** this checkout, `master` @ `8c821c052`, OGRE **1.11.6.1** (`conanfile.py:25`)
 
-> Every count in this document is re-derivable. Run `tools/verify-rendering-api-audit.sh`;
-> it re-computes all 24 tree-dependent figures cited below and exits non-zero if any has
-> drifted. The tree moves — do not trust a number here that the script no longer confirms.
+> Every load-bearing count in this document is re-derivable. Run
+> `tools/verify-rendering-api-audit.sh`; it re-computes the **33** tree-dependent figures it
+> lists and exits non-zero if any has drifted. It is a manual check — no CI job runs it. The
+> tree moves: do not trust a number here that the script no longer confirms.
 
 ---
 
@@ -39,10 +40,10 @@ The starting-point audit in issue #2 was re-verified line by line. Confirmed:
 | Renderer is OGRE 1.11.6.1, the 1.x line (`conanfile.py:25`) | ✅ confirmed |
 | `source/main/plugins.cfg.in` offers D3D9, D3D11, GL, GL3Plus — no D3D12 entry | ✅ confirmed |
 | `source/main/CMakeLists.txt:496-497` unconditionally comments out D3D11 and GL3Plus | ✅ confirmed |
-| `CMakeLists.txt:493` comments out GL on Windows → a Windows build loads D3D9 only | ✅ confirmed |
+| `source/main/CMakeLists.txt:493` comments out GL on Windows → a Windows build loads D3D9 only | ✅ confirmed |
 | Runtime render-system selection already works (`AppContext.cpp:291-298`, `GUI_GameSettings.cpp:143-157`) | ✅ confirmed |
 | `Plugin_CgProgramManager` loaded unconditionally | ✅ confirmed |
-| `REQUIRED_DEPS_VERSION 30` (`CMakeLists.txt:19`) | ✅ confirmed |
+| `REQUIRED_DEPS_VERSION 30` (root `CMakeLists.txt:19`) | ✅ confirmed |
 
 **One correction.** Issue #2 states "exactly two places branch on render-system name."
 There are **three**:
@@ -143,7 +144,7 @@ rendered via the RTShaderSystem, which auto-generates them. In this tree:
 One point in favour: `resources/rtshader/` already ships **9 HLSL** FFPLib variants alongside
 9 Cg and 9 GLSL, so RTSS itself has a working D3D11 path. It just isn't turned on.
 
-**Conclusion: flipping `CMakeLists.txt:496` yields a game that starts on D3D11 and renders
+**Conclusion: flipping `source/main/CMakeLists.txt:496` yields a game that starts on D3D11 and renders
 almost nothing correctly.** Option A is real and worthwhile, but it is a shader-and-materials
 project, not a build-flag change.
 
@@ -208,7 +209,7 @@ manager and viewport, wire `gfx_enable_rtshaders` to something,
 register the material-scheme listener across the game, not just terrain objects; (2) give the
 67 Cg declarations a D3D11-capable profile (`vs_4_0`/`ps_4_0`, or `hlslv`/`hlslf`), then fix the
 SM2/SM3-era Cg that fails to compile at SM4 — texture sampling and semantics are the usual
-casualties; (3) ship `RenderSystem_Direct3D11` and uncomment `CMakeLists.txt:496`.
+casualties; (3) ship `RenderSystem_Direct3D11` and uncomment `source/main/CMakeLists.txt:496`.
 
 **Risks:** the SM4 recompile of decade-old Cg is the unknown, and it is the whole variance in
 the estimate. Caelum (10 of the 17 Cg files) is third-party. Keep D3D9 selectable throughout —
@@ -234,7 +235,7 @@ maintained — **v14.6.0 (2026-09-09)** adds HDR display output on Vulkan among 
 
 The cost is the version jump: **1.11.6.1 → 14.x** crosses 1.12, 1.13, 13.x and 14.x with
 breaking changes at each. Per issue #2's invariant, this is a **`ror-dependencies` package bump
-plus a `REQUIRED_DEPS_VERSION` change** (`CMakeLists.txt:19`, currently `30`) — a change in
+plus a `REQUIRED_DEPS_VERSION` change** (root `CMakeLists.txt:19`, currently `30`) — a change in
 another repository, not a local edit. Note `linux-native.yml` pins `v1.11.6` explicitly and
 would need updating too.
 
@@ -337,7 +338,8 @@ Options A–D by a single step.
 
 ## Recommendation
 
-**Adopt Option E now, and treat Option A as the only engine-side modernization worth funding.**
+**Evaluate Option E now and ship it if the numbers hold; treat Option A as the only
+engine-side modernization worth funding.**
 
 Option E is the only thing in this document that answers the owner's literal question at a cost
 worth paying: it puts RoR's rendering on a DirectX 12 driver path today, with no code change, no
