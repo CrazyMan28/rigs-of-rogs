@@ -77,6 +77,19 @@ check "  ...of which outside OgreCore/ (i.e. RoR's own content)" "0" \
         --include=*.material --include=*.program resources \
         | grep -v 'resources/OgreCore/' | wc -l | tr -d ' ')"
 
+# D3D11 never registers vs_1_1 or ps_2_x at any setting, so declarations resting
+# on them are unreachable regardless of SUPPORT_SM2_0_HLSL_SHADERS.
+profiles_normalised() {
+    grep -rhEi '^[[:space:]]*profiles[[:space:]]' \
+        --include=*.material --include=*.program resources | sed 's/[[:space:]]*$//'
+}
+
+check "declarations using vs_1_1 with no SM4/SM5 alternative" "12" \
+    "$(profiles_normalised | grep -E '\bvs_1_1\b' | grep -vcE '\b(vs_4_0|vs_5_0)\b')"
+
+check "declarations using ps_2_x (never registered by D3D11)" "9" \
+    "$(profiles_normalised | grep -cE '\bps_2_x\b')"
+
 total_mat=$(find resources -name '*.material' | wc -l | tr -d ' ')
 ff_mat=0
 for f in $(find resources -name '*.material'); do

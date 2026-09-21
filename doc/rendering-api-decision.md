@@ -5,7 +5,7 @@
 **Audited against:** this checkout, `master` @ `8c821c052`, OGRE **1.11.6.1** (`conanfile.py:25`)
 
 > Every count in this document is re-derivable. Run `tools/verify-rendering-api-audit.sh`;
-> it re-computes all 18 tree-dependent figures cited below and exits non-zero if any has
+> it re-computes all 20 tree-dependent figures cited below and exits non-zero if any has
 > drifted. The tree moves — do not trust a number here that the script no longer confirms.
 
 ---
@@ -114,7 +114,8 @@ Two mechanisms then bite:
 2. **`vs_1_1` and `ps_2_x` are never registered by D3D11 at all.** `OgreD3D11RenderSystem.cpp`
    registers `vs_2_0`/`vs_3_0`/`ps_2_0`/`ps_2_a`/`ps_2_b`/`ps_3_0` only under
    `#define SUPPORT_SM2_0_HLSL_SHADERS 1` (`OgreD3D11RenderSystem.h:49`, on by default), and
-   `vs_1_1`/`ps_2_x` never. That covers 11 + 9 declarations outright.
+   `vs_1_1`/`ps_2_x` never. That alone rules out **21 of the 72** declarations (12 using `vs_1_1`,
+   9 using `ps_2_x`) no matter what else is done.
 
 ### And there is a second, larger problem: fixed-function materials
 
